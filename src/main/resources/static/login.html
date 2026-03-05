@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 微博热度监测系统</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    :root {
+      --primary-color: #ff8200;
+      --primary-hover: #e67600;
+      --bg-color: #f0f2f5;
+      --text-color: #333;
+      --error-color: #ff4d4f;
+      --success-color: #52c41a;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+      background-color: var(--bg-color);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 40px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+      box-sizing: border-box;
+      margin: 20px;
+    }
+
+    .header { text-align: center; margin-bottom: 30px; }
+    .header h1 { margin: 0; color: var(--primary-color); font-size: 28px; }
+    .header p { color: #666; margin-top: 10px; }
+
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-size: 14px; color: #555; font-weight: bold;}
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s;
+      box-sizing: border-box;
+    }
+    .form-group input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 2px rgba(255,130,0,0.1); }
+
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .btn-submit:hover { background-color: var(--primary-hover); }
+
+    .footer-links { display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px; }
+    .footer-links a { color: var(--primary-color); text-decoration: none; cursor: pointer; }
+    .footer-links a:hover { text-decoration: underline; }
+
+    .message { text-align: center; font-size: 14px; margin-top: 15px; padding: 10px; border-radius: 4px; }
+    .error { color: var(--error-color); background: #fff2f0; border: 1px solid #ffccc7; }
+    .success { color: var(--success-color); background: #f6ffed; border: 1px solid #b7eb8f; }
+  </style>
+</head>
+<body>
+
+<div id="app" class="login-container">
+  <div class="header">
+    <h1>{{ title }}</h1>
+    <p>{{ subtitle }}</p>
+  </div>
+
+  <div v-if="msg.content" :class="['message', msg.type]">
+    {{ msg.content }}
+  </div>
+
+  <div class="form-group">
+    <template v-if="view === 'login'">
+      <label>账号</label>
+      <input v-model="form.account" type="text" placeholder="用户名/手机号/邮箱">
+      <label style="margin-top: 15px;">密码</label>
+      <input v-model="form.password" type="password" placeholder="请输入密码" @keyup.enter="handleSubmit">
+    </template>
+
+    <template v-if="view === 'reg'">
+      <label>用户名</label>
+      <input v-model="form.username" type="text" placeholder="设置您的登录用户名">
+
+      <label style="margin-top: 15px;">手机号</label>
+      <input v-model="form.phone" type="text" placeholder="您的手机号码">
+
+      <label style="margin-top: 15px;">电子邮箱</label>
+      <input v-model="form.email" type="email" placeholder="example@mail.com">
+
+      <label style="margin-top: 15px;">设置密码</label>
+      <input v-model="form.password" type="password" placeholder="请输入密码">
+    </template>
+
+    <template v-if="view === 'forget'">
+      <label>用户名</label>
+      <input v-model="form.username" type="text" placeholder="请输入原用户名">
+
+      <label style="margin-top: 15px;">绑定联系方式</label>
+      <input v-model="form.account" type="text" placeholder="注册时的手机号或邮箱">
+
+      <label style="margin-top: 15px;">设置新密码</label>
+      <input v-model="form.password" type="password" placeholder="请输入新密码">
+    </template>
+  </div>
+
+  <button class="btn-submit" @click="handleSubmit">
+    {{ submitText }}
+  </button>
+
+  <div class="footer-links">
+    <template v-if="view === 'login'">
+      <a @click="switchView('reg')">注册新账号</a>
+      <a @click="switchView('forget')">忘记密码？</a>
+    </template>
+    <template v-else>
+      <a @click="switchView('login')">返回登录</a>
+    </template>
+  </div>
+</div>
+
+<script>
+  const { createApp, ref, computed } = Vue;
+
+  createApp({
+    setup() {
+      const view = ref('login');
+      const form = ref({
+        account: '',
+        username: '',
+        password: '',
+        phone: '',
+        email: ''
+      });
+      const msg = ref({ content: '', type: '' });
+
+      const title = computed(() => {
+        const titles = { login: '欢迎回来', reg: '加入监测', forget: '重置密码' };
+        return titles[view.value];
+      });
+
+      const subtitle = computed(() => {
+        return view.value === 'login' ? '请登录您的账号' : '开始追踪微博实时热度';
+      });
+
+      const submitText = computed(() => {
+        const texts = { login: '立即登录', reg: '提交注册', forget: '确认修改' };
+        return texts[view.value];
+      });
+
+      const showMsg = (content, type = 'error') => {
+        msg.value = { content, type };
+        setTimeout(() => msg.value.content = '', 4000);
+      };
+
+      const switchView = (v) => {
+        view.value = v;
+        msg.value.content = '';
+        // 切换时清空表单，防止干扰
+        form.value = { account: '', username: '', password: '', phone: '', email: '' };
+      };
+
+      const handleSubmit = async () => {
+        // 1. 基础校验
+        if (view.value === 'login' && (!form.value.account || !form.value.password)) {
+          showMsg('请填写账号和密码'); return;
+        }
+        if (view.value === 'reg' && (!form.value.username || !form.value.password || (!form.value.phone && !form.value.email))) {
+          showMsg('请填写用户名、密码及至少一种联系方式'); return;
+        }
+
+        let url = `/api/user/${view.value}`;
+        // 根据不同视图构建发送给后端的 Payload
+        let bodyData = {};
+
+        if (view.value === 'reg') {
+          bodyData = {
+            username: form.value.username,
+            password: form.value.password,
+            phone: form.value.phone,
+            email: form.value.email
+          };
+        } else if (view.value === 'forget') {
+          bodyData = {
+            username: form.value.username,
+            account: form.value.account,
+            password: form.value.password
+          };
+        } else {
+          bodyData = {
+            account: form.value.account,
+            password: form.value.password
+          };
+        }
+
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyData)
+          });
+
+          const data = await res.text();
+
+          if (res.ok) {
+            showMsg('登录成功！跳转中...', 'success');
+            // 💡 建议在跳转前存一下用户名，方便 Portal 页显示
+            localStorage.setItem('currentUser', form.value.account);
+            localStorage.setItem('isLoggedIn', 'true');
+            setTimeout(() => {
+              window.location.href = 'portal.html';
+            }, 1000);
+          } else {
+            showMsg(data || '操作失败，请核对信息');
+          }
+        } catch (e) {
+          showMsg('网络异常，无法连接服务器');
+        }
+      };
+
+      return { view, form, msg, title, subtitle, submitText, switchView, handleSubmit };
+    }
+  }).mount('#app');
+</script>
+
+</body>
+</html>

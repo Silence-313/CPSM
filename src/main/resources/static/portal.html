@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>功能控制台 - 微博数据系统</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    :root {
+      --primary: #ff8200;
+      --bg: #f4f7f9;
+    }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", sans-serif;
+      background-color: var(--bg);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .portal-container {
+      width: 100%;
+      max-width: 800px;
+      text-align: center;
+      padding: 20px;
+    }
+    .welcome-section { margin-bottom: 40px; }
+    .welcome-section h1 { color: #333; font-size: 2rem; }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 25px;
+      margin-top: 20px;
+    }
+    .menu-card {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border: 2px solid transparent;
+    }
+    .menu-card:hover {
+      transform: translateY(-5px);
+      border-color: var(--primary);
+      box-shadow: 0 8px 25px rgba(255,130,0,0.15);
+    }
+    .icon { font-size: 40px; margin-bottom: 15px; display: block; }
+    .menu-card h3 { margin: 10px 0; color: #333; }
+    .menu-card p { color: #888; font-size: 14px; }
+
+    .logout-btn {
+      margin-top: 40px;
+      padding: 10px 20px;
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      color: #999;
+      cursor: pointer;
+    }
+    .logout-btn:hover { color: #666; border-color: #999; }
+  </style>
+</head>
+<body>
+
+<div id="app" class="portal-container">
+  <div class="welcome-section">
+    <h1>您好，{{ username }}</h1>
+    <p>请选择您要使用的功能模块</p>
+  </div>
+
+  <div class="menu-grid">
+    <div class="menu-card" @click="goTo('index.html')">
+      <span class="icon">🔥</span>
+      <h3>热搜监测看板</h3>
+      <p>实时监控微博名人热度与排名</p>
+    </div>
+
+    <div class="menu-card" style="opacity: 0.6; cursor: not-allowed;">
+      <span class="icon">📈</span>
+      <h3>历史趋势分析</h3>
+      <p>功能开发中...</p>
+    </div>
+
+    <div class="menu-card" style="opacity: 0.6; cursor: not-allowed;">
+      <span class="icon">⚙️</span>
+      <h3>个人中心</h3>
+      <p>修改资料与安全设置</p>
+    </div>
+  </div>
+
+  <button class="logout-btn" @click="logout">退出登录</button>
+</div>
+
+<script>
+  const { createApp, ref, onMounted } = Vue;
+
+  createApp({
+    setup() {
+      // 这里可以尝试从 localStorage 获取登录时存入的用户名
+      const username = ref(localStorage.getItem('currentUser') || '用户');
+
+      const goTo = (path) => {
+        window.location.href = path;
+      };
+
+      const logout = () => {
+        localStorage.removeItem('isLoggedIn');
+        window.location.href = 'login.html';
+      };
+
+      return { username, goTo, logout };
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>
