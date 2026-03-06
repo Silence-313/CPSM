@@ -110,4 +110,14 @@ public class HotSearchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("删除失败");
         }
     }
+
+    @PostMapping("/star/updateColor")
+    public ResponseEntity<String> updateColor(@RequestParam Integer id, @RequestParam String color) {
+        try {
+            weiboService.updateColor(id, color);
+            return ResponseEntity.ok("颜色已永久保存");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("保存失败");
+        }
+    }
 }

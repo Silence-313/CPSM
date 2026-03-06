@@ -15,4 +15,5 @@ public interface WeiboService {
     void addStar(String name, String color);
     void addKeyword(Integer starId, String keyword);
     void removeKeyword(Integer starId, String keyword);
+    void updateColor(Integer id, String color);
 }

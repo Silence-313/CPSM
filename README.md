@@ -68,8 +68,9 @@
 
 ### 2026-03-06
 - [x] **遗留问题的修复与拓展**：
-    - 成功解决遗留问题，同时保留`HostSearchController`中的`getStarDetails`,`getMonitorDetail`两个函数，确保**名人**与**关键词**信息都能匹配
+    - 成功解决遗留问题，同时保留`HostSearchController`中的`getStarDetails`,`getMonitorDetail`两个函数，确保**名人**与**关键词**信息都能匹配。
     - 为**名人**与**关键词**设置相同颜色
+- [x] **颜色永久存储**：为`MonitorStar`增加`Color`并同步修改相关代码实现颜色的永久存储。
 ---
 
 ## 📖 运行说明

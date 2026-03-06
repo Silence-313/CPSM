@@ -30,4 +30,8 @@ public interface MonitorStarMapper {
 
     @Delete("DELETE FROM monitor_keywords WHERE star_id = #{starId} AND keyword = #{keyword}")
     int deleteKeyword(@Param("starId") Integer starId, @Param("keyword") String keyword);
+
+    @Update("UPDATE monitor_star SET color = #{color} WHERE id = #{id}")
+    int updateStarColor(@Param("id") Integer id, @Param("color") String color);
+
 }

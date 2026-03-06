@@ -120,4 +120,11 @@ public class WeiboServiceImpl implements WeiboService {
         // 从 monitor_keywords 表删除指定关键词
         starMapper.deleteKeyword(starId, keyword);
     }
+
+    @Override
+    @Transactional
+    public void updateColor(Integer id, String color) {
+        // 确保调用 mapper 更新数据库
+        starMapper.updateStarColor(id, color);
+    }
 }

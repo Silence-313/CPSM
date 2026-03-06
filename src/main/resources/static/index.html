@@ -88,9 +88,9 @@
         </td>
         <td>
           <div class="color-picker">
-              <span v-for="c in colorPresets" :key="c.value" class="color-dot"
-                    :class="{ active: star.color === c.value }" :style="{ backgroundColor: c.value }"
-                    @click="star.color = c.value"></span>
+            <span v-for="c in colorPresets" :key="c.value" class="color-dot"
+                :class="{ active: star.color === c.value }" :style="{ backgroundColor: c.value }"
+                @click="updateStarColor(star, c.value)"></span>
           </div>
         </td>
         <td>
@@ -249,6 +249,44 @@
         } catch (e) { console.error(e); }
       };
 
+      const changeColor = async (star, newColor) => {
+        // 1. 先更新本地 UI（保证响应速度）
+        star.color = newColor;
+        // 2. 发送到后端永久存储
+        try {
+          const response = await fetch(`/api/weibo/star/updateColor?id=${star.id}&color=${encodeURIComponent(newColor)}`, {
+            method: 'POST'
+          });
+
+          if (response.ok) {
+            console.log("颜色持久化成功");
+            // 3. 刷新数据以确保同步
+            fetchData();
+          }
+        } catch (error) {
+          alert("颜色保存失败，请检查网络");
+        }
+      };
+      const updateStarColor = async (star, newColor) => {
+        const oldColor = star.color;
+        star.color = newColor;
+
+        try {
+          // 修正点 1：路径改为 /star/updateColor (与后端 @PostMapping 对应)
+          // 修正点 2：方法改为 POST
+          const response = await fetch(`/api/weibo/star/updateColor?id=${star.id}&color=${encodeURIComponent(newColor)}`, {
+            method: 'POST'
+          });
+
+          if (!response.ok) throw new Error('保存失败');
+          console.log("颜色持久化成功");
+        } catch (e) {
+          console.error("颜色更新失败:", e);
+          star.color = oldColor; // 失败回滚
+          alert("颜色保存失败，请稍后重试");
+        }
+      };
+
       const formatNum = (num) => num ? num.toLocaleString() : '0';
       const toggleAutoRefresh = () => {
         if (autoRefresh.value) timer = setInterval(fetchData, 60000);
@@ -263,7 +301,7 @@
         hotSearchList, monitorStars, loading, newStar, autoRefresh, colorPresets,
         fetchData, formatNum, addStar, removeStar, toggleAutoRefresh, logout,
         getHighlightStyle, isMatched, getMatchedColor, getMatchedValue, addKeyword,
-        deleteKeyword
+        deleteKeyword, changeColor, updateStarColor
       };
     }
   }).mount('#app');
