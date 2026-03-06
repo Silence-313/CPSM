@@ -150,25 +150,36 @@
       const fetchData = async () => {
         if (!autoRefresh.value) loading.value = true;
         try {
-          const [hotRes, detailRes] = await Promise.all([
+          // 1. 同时请求三个接口
+          const [hotRes, detailRes, monitorDetailRes] = await Promise.all([
             fetch('/api/weibo/monitor'),
-            fetch('/api/weibo/stars/detail')
+            fetch('/api/weibo/stars/detail'),       // 获取 StarVO (name, sum)
+            fetch('/api/weibo/stars/MonitorDetail') // 获取 MonitorStar (id, star_name, keywords, color)
           ]);
-          hotSearchList.value = await hotRes.json();
-          const details = await detailRes.json();
 
-          // 关键修正：将后端的 star_name 映射给前端使用的 name
-          monitorStars.value = details.map(s => {
+          hotSearchList.value = await hotRes.json();
+          const starVOList = await detailRes.json();
+          const monitorStarList = await monitorDetailRes.json();
+
+          // 数据合并：以 monitorStarList 为主，因为我们需要 id 来操作关键词
+          monitorStars.value = monitorStarList.map(ms => {
+            // 从 StarVO 中找到对应的实时热度值
+            const voMatch = starVOList.find(vo => vo.name === ms.name);
+
+            // 保留用户在界面上实时切换的颜色状态
+            const existing = monitorStars.value.find(ex => ex.name === ms.name);
+
             return {
-              ...s,
-              id: s.id,                // 确保 ID 存在，用于关键词操作
-              name: s.name,       // 把后端的 star_name 赋值给 name
-              keywords: s.keywords || [],
-              totalHot: s.totalHot || 0,
-              color: s.color || '#ff8200'
+              id: ms.id,
+              name: ms.name,
+              keywords: ms.keywords || [],
+              // 优先使用计算后的 VO 热度值
+              totalHot: voMatch ? voMatch.totalHot : (ms.totalHot || 0),
+              color: existing ? existing.color : (ms.color || '#ff8200')
             };
           });
-          console.log("数据加载成功:", monitorStars.value);
+
+          console.log("多接口数据合并成功:", monitorStars.value);
         } catch (error) {
           console.error("同步失败:", error);
         } finally {

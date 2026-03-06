@@ -69,9 +69,23 @@ public class HotSearchController {
     }
 
     @GetMapping("/stars/detail")
-    public List<MonitorStar> getStarDetails() {
-        // 直接调用 service 中已经写好的核心监控逻辑
-        // 该方法会自动关联查询关键词，并计算当前热搜中的 totalHot 和 onBoardCount
+    public List<StarVO> getStarDetails() {
+        // 1. 获取数据库名单
+        List<String> names = starMapper.findAllNames();
+        // 2. 获取当前实时热搜
+        List<HotSearchItem> hotItems = weiboService.getAnalyzedHotSearch();
+        return names.stream().map(name -> {
+            // 计算该名人在当前热搜中的热度总和
+            long sum = hotItems.stream()
+                    .filter(item -> item.getWord().contains(name))
+                    .mapToLong(item -> item.getNum() == null ? 0 : item.getNum())
+                    .sum();
+            return new StarVO(name, sum);
+        }).collect(Collectors.toList());
+    }
+
+    @GetMapping("/stars/MonitorDetail")
+    public List<MonitorStar> getMonitorDetail() {
         return weiboService.getMonitorDetail();
     }
 
