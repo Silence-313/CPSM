@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserMapper;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,10 +18,16 @@ public class UserController {
     @Autowired
     private UserMapper userMapper;
 
+    // UserController.java
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> data) {
+    public ResponseEntity<?> login(@RequestBody Map<String, String> data, HttpSession session) { // 注入session
         User user = userMapper.login(data.get("account"), data.get("password"));
-        return user != null ? ResponseEntity.ok(user) : ResponseEntity.status(401).body("账号或密码错误");
+        if (user != null) {
+            // 关键：把用户ID存入Session，这样后续调用 /api/weibo/monitor 才能拿到 ID
+            session.setAttribute("userId", user.getId().intValue());
+            return ResponseEntity.ok(user);
+        }
+        return ResponseEntity.status(401).body("账号或密码错误");
     }
 
     @PostMapping("/reg")

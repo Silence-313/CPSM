@@ -7,11 +7,13 @@ import com.example.demo.repository.MonitorStarMapper;
 import com.example.demo.service.WeiboService;
 import com.example.demo.service.impl.WeiboServiceImpl;
 import com.example.demo.utils.HttpUtils;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,15 +46,27 @@ public class HotSearchController {
     }
 
     @GetMapping("/monitor")
-    public List<HotSearchItem> monitor() {
-        return weiboServiceimpl.getAnalyzedHotSearch();
+    public List<HotSearchItem> monitor(HttpSession session) {
+        Integer userId = (Integer) session.getAttribute("userId");
+        // 即使 userId 为空（Session 丢失或未登录），也应该返回基础热搜榜单
+        // 只是 item.isHighlighted 都会是 false
+        return weiboService.getAnalyzedHotSearch(userId);
     }
 
     @PostMapping("/star")
-    public String addStar(@RequestParam String name,
-                          @RequestParam(defaultValue = "#ff8200") String color) {
-        weiboServiceimpl.addStar(name, color);
-        return "添加成功: " + name;
+    public ResponseEntity<String> addStar(
+            @RequestParam String name,
+            @RequestParam String color,
+            HttpSession session) {
+        Integer userId = (Integer) session.getAttribute("userId");
+        if (userId == null) return ResponseEntity.status(401).body("请先登录");
+
+        try {
+            weiboService.addStarWithUser(name, color, userId);
+            return ResponseEntity.ok("添加成功"); // 必须返回 ok
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("数据库写入失败");
+        }
     }
 
     // 获取当前所有监测的名人
@@ -63,17 +77,30 @@ public class HotSearchController {
 
     // 删除指定的监测名人
     @DeleteMapping("/star")
-    public String deleteStar(@RequestParam String name) {
-        starMapper.deleteByName(name);
-        return "已移除: " + name;
+    public ResponseEntity<String> deleteStar(@RequestParam String name, HttpSession session) {
+        Integer userId = (Integer) session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("请先登录");
+        }
+        starMapper.deleteByNameAndUser(name, userId);
+        return ResponseEntity.ok("删除成功");
     }
 
     @GetMapping("/stars/detail")
-    public List<StarVO> getStarDetails() {
-        // 1. 获取数据库名单
-        List<String> names = starMapper.findAllNames();
-        // 2. 获取当前实时热搜
-        List<HotSearchItem> hotItems = weiboService.getAnalyzedHotSearch();
+    public List<StarVO> getStarDetails(HttpSession session) {
+        // 1. 从 session 获取当前用户 ID
+        Integer userId = (Integer) session.getAttribute("userId");
+        if (userId == null) {
+            return new ArrayList<>(); // 未登录返回空数据
+        }
+
+        // 2. 获取该用户名下的所有名人名字
+        // 注意：建议在 Mapper 中增加 findAllNamesByUserId(userId) 方法
+        List<String> names = starMapper.findAllNamesByUserId(userId);
+
+        // 3. 获取该用户对应的热搜分析结果 (传入 userId)
+        List<HotSearchItem> hotItems = weiboService.getAnalyzedHotSearch(userId);
+
         return names.stream().map(name -> {
             // 计算该名人在当前热搜中的热度总和
             long sum = hotItems.stream()
@@ -85,8 +112,13 @@ public class HotSearchController {
     }
 
     @GetMapping("/stars/MonitorDetail")
-    public List<MonitorStar> getMonitorDetail() {
-        return weiboService.getMonitorDetail();
+    public List<MonitorStar> getMonitorDetail(HttpSession session) {
+        // 假设你登录成功后在 session 存了 "userId"
+        Integer userId = (Integer) session.getAttribute("userId");
+        if (userId == null) return new ArrayList<>();
+
+        // 调用 service 时传入 userId
+        return weiboService.getMonitorDetail(userId);
     }
 
     @PostMapping("/star/keyword")
@@ -120,4 +152,5 @@ public class HotSearchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("保存失败");
         }
     }
+
 }

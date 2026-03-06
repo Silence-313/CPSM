@@ -7,6 +7,7 @@ import java.util.List;
 @Data
 public class MonitorStar {
     private Integer id;
+    private Integer userId;
     private String name;
     private String color;
     private LocalDateTime create_time;
