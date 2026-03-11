@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>博文风向分析 - 微博数据系统</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --primary: #ff8200;
+            --success: #52c41a;
+            --danger: #f5222d;
+            --bg: #f4f7f9;
+        }
+        body { margin: 0; font-family: "Microsoft YaHei", sans-serif; background: var(--bg); }
+
+        .analysis-container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+
+        /* 顶部导航与搜索 */
+        .header-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            max-width: 600px;
+            margin: 20px auto 0;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus { border-color: var(--primary); }
+
+        .analyze-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* 结果展示区 */
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            opacity: 0; /* 默认隐藏，分析后显示 */
+            transition: opacity 0.5s;
+        }
+        .result-grid.active { opacity: 1; }
+
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            min-height: 400px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        .full-width { grid-column: 1 / -1; }
+
+        .back-btn {
+            margin-bottom: 20px;
+            cursor: pointer;
+            color: #666;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="analysis-container">
+    <div class="back-btn" @click="goBack">← 返回控制台</div>
+
+    <div class="header-card">
+        <h1>📊 博文风向深度分析</h1>
+        <p>输入微博正文 ID (MID) 或链接，系统将自动抓取评论并进行情感建模</p>
+
+        <div class="input-group">
+            <input type="text" v-model="weiboUrl" placeholder="请输入微博链接或 ID (例: 4876543210)">
+            <button class="analyze-btn" @click="startAnalysis" :disabled="loading">
+                {{ loading ? '解析中...' : '开始分析' }}
+            </button>
+        </div>
+        <div v-if="loading && !hasResult" style="margin-top: 25px;">
+            <div style="width: 100%; background: #eee; border-radius: 10px; height: 12px; overflow: hidden;">
+                <div :style="{ width: progress + '%', background: 'var(--primary)', height: '100%', transition: 'width 0.5s' }"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: #666;">
+                <span>{{ statusText }}</span>
+                <span>{{ progress }}%</span>
+            </div>
+        </div>
+    </div>
+
+    <div :class="['result-grid', { active: hasResult }]">
+        <div class="chart-card">
+            <h3>🎭 情感舆向分布</h3>
+            <div id="sentimentChart" style="width: 100%; height: 350px;"></div>
+        </div>
+
+        <div class="chart-card">
+            <h3>🔍 评论关键词云</h3>
+            <div id="wordCloudChart" style="width: 100%; height: 350px;"></div>
+        </div>
+
+        <div class="chart-card full-width">
+            <h3>💬 典型评论摘要</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <tr v-for="item in topComments" :key="item.id" style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 12px; color: #444;">{{ item.text }}</td>
+                    <td style="width: 80px; text-align: right;">
+            <span :style="{ color: item.sentiment > 0.5 ? 'var(--success)' : 'var(--danger)' }">
+              {{ item.sentiment > 0.5 ? '正面' : '负面' }}
+            </span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, nextTick } = Vue;
+
+    createApp({
+        setup() {
+            const weiboUrl = ref('');
+            const loading = ref(false);
+            const hasResult = ref(false);
+            const topComments = ref([]);
+
+            const progress = ref(0);
+            const statusText = ref('准备启动爬虫引擎...');
+            let sentimentChart = null;
+
+            const goBack = () => window.location.href = 'portal.html';
+
+            // 初始化/更新饼图
+            const initSentimentChart = (data) => {
+                const chartDom = document.getElementById('sentimentChart');
+                if (!sentimentChart) {
+                    sentimentChart = echarts.init(chartDom);
+                }
+                sentimentChart.setOption({
+                    title: { text: '情感比例', left: 'center', top: 'center' },
+                    tooltip: { trigger: 'item' },
+                    color: ['#52c41a', '#faad14', '#f5222d'],
+                    series: [{
+                        name: '评论倾向',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+                        label: { show: true, formatter: '{b}: {c}' },
+                        data: data
+                    }]
+                });
+            };
+
+            const startAnalysis = async () => {
+                if (!weiboUrl.value) return alert('请输入微博链接或 ID');
+
+                loading.value = true;
+                hasResult.value = false; // 重置显示状态
+                progress.value = 0; // 重置进度
+
+                // --- 开启轮询：每 800ms 查一次进度 ---
+                const progressTimer = setInterval(async () => {
+                    try {
+                        // 确保这个 URL 能在浏览器直接访问并返回数字
+                        const res = await fetch(`/api/analysis/progress?mid=${encodeURIComponent(weiboUrl.value)}`);
+                        if (res.ok) {
+                            const val = await res.json();
+                            progress.value = val;
+
+                            // 联动文案：让 53% 看起来也是在工作的
+                            if (val < 20) statusText.value = "初始化爬虫环境...";
+                            else if (val < 55) statusText.value = "正在深度并发抓取历史评论...";
+                            else if (val < 95) statusText.value = "正在清洗无效数据并进行分词...";
+                            else statusText.value = "即将生成分析报告...";
+                        }
+                    } catch (e) {
+                        console.error("轮询失败", e);
+                    }
+                }, 800);
+
+                try {
+                    const response = await fetch('/api/analysis/weibo', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        // 这里的 Key 必须对应你后端 DTO 的字段 getMid() -> mid
+                        body: JSON.stringify({ mid: weiboUrl.value })
+                    });
+
+                    if (!response.ok) throw new Error('响应异常');
+                    const resData = await response.json();
+
+                    if (resData.errorMsg) {
+                        alert('分析失败：' + resData.errorMsg);
+                    } else {
+                        hasResult.value = true;
+                        topComments.value = resData.topComments || [];
+                        const chartData = [
+                            { value: resData.positive, name: '正面倾向' },
+                            { value: resData.neutral, name: '中性观点' },
+                            { value: resData.negative, name: '负面情绪' }
+                        ];
+                        await nextTick();
+                        initSentimentChart(chartData);
+                    }
+
+                } catch (error) {
+                    console.error('Analysis Error:', error);
+                    alert('系统繁忙，请稍后再试');
+                } finally {
+                    loading.value = false;
+                    progress.value = 100;
+                }
+            };
+
+            return {
+                weiboUrl, loading, hasResult, topComments,
+                progress, statusText, // 记得暴露给模板
+                startAnalysis, goBack
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

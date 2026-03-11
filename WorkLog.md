@@ -59,3 +59,44 @@
 - [x] **信息以账号为单位的存储**：为`MonitorStar`添加`userId`字段
 - [x] **添加对命中次数的统计与显示**
 - [x] **通过公网测试**：使用公网穿透工具cpolar实现项目在公网进行访问，尽管加载速度变慢，但仍然能够正常使用。
+
+### 2026-03-11
+- [x] **HttpUtils.java** (网络请求工具类)
+  - 创建与修改：针对 macOS 环境下的 RestTemplate 请求进行了深度定制。 
+  - 核心功能： 
+    - 身份伪装：手动构造了包含最新 User-Agent、Referer 和 x-xsrf-token 的请求头。 
+    - Session 维持：集成了从浏览器捕获的完整 Cookie（包含 SUB, XSRF-TOKEN 等关键字段），解决了 403 Forbidden 报错。 
+    - 动态分页请求：将方法重构为接收 mid 和 maxId 两个参数，通过拼接 URL 实现对微博翻页接口的精准调用。
+
+- [x] **CommentAnalysisServiceImpl.java** (业务逻辑实现类)
+  - 创建与修改：实现了从单页抓取向全量循环抓取的逻辑演进。 
+  - 核心功能： 
+    - 流式爬虫引擎：利用 while(true) 循环，配合 max_id 机制持续抓取评论，直至到达微博返回的最后一页或触及安全上限（100页）。 
+    - 异步进度管理：引入 ConcurrentHashMap 记录各任务的 progress，并设计了非线性进度算法（前快后慢），提升用户感知体验。 
+    - 数据清洗：精准提取 JSON 中的 text_raw 字段，排除 HTML 干扰，为后续分词做准备。
+
+- [x] **CommentAnalysisController.java** (接口控制层)
+  - 创建与修改：定义了前端交互的标准 API 路径。 
+  - 核心功能： 
+    - POST /api/analysis/weibo：接收前端传来的微博链接或 ID，调用 WeiboIdParser 进行格式化，并启动耗时较长的抓取任务。 
+    - GET /api/analysis/progress：响应前端的轮询请求，返回内存中最新的任务百分比，解决了异步任务状态不可见的问题。
+
+- [x] **analysis.html** (分析展示页面)
+  - 创建与修改：基于 Vue 3 和 ECharts 构建，适配了最新的异步轮询机制。 
+  - 核心功能： 
+    - 状态机管理：定义了 loading、progress、hasResult 等状态，控制 UI 在“搜索-进度显示-结果渲染”之间平滑切换。 
+    - 双线程交互： 
+      1. 分析线程：发起长连接请求进行后端数据爬取。 
+      2. 轮询线程：每 800ms 访问一次进度接口，驱动页面上的橙色进度条平滑移动。 
+    - 数据可视化：调用 ECharts 动态渲染饼图（情感比例）和表格（典型评论摘要）。
+
+- [x] **AnalysisRequest.java** (数据传输对象 DTO)
+  - 功能：规范前端传参格式，确保 mid 字段能被 Spring 正确反序列化。
+
+- [x] **WeiboIdParser.java** (ID 解析工具类)
+  - 功能：负责将用户输入的各种微博链接（如 https://weibo.com/u/123...）正则解析为纯数字 MID，保证后端接口调用的统一性。
+
+⚠️ 待办事项 (Next Steps)
+- 分词与词云图实现：目前前端词云卡片仍为空白，需引入 HanLP 或 Jieba 分词组件对全量评论进行热词提取。 
+- Cookie 动态管理：当前的 Cookie 是静态硬编码，需研究如何实现自动更新或通过配置文件注入。 
+- 情感字典升级：目前的关键词匹配过于简单，计划引入专门的中文情感倾向词库（如知网 Hownet 或大连理工词库）。
