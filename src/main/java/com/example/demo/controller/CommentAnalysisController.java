@@ -7,6 +7,8 @@ import com.example.demo.vo.AnalysisResultVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
+
 @RestController
 @RequestMapping("/api/analysis")
 public class CommentAnalysisController {
@@ -35,5 +37,23 @@ public class CommentAnalysisController {
         // 同样进行一次解析，确保 ID 格式与 Service 内存的一致
         String realMid = WeiboIdParser.parseMid(mid);
         return analysisService.getProgress(realMid != null ? realMid : mid);
+    }
+
+    @PostMapping("/refresh-cookie")
+    public String refreshCookie() {
+        try {
+            // 根据你之前的日志，这是你的 M4 Mac 上的 Conda 路径
+            String pythonPath = "/opt/anaconda3/envs/weibo_spider/bin/python";
+            // 脚本绝对路径
+            String scriptPath = new File("spider/cookie_helper.py").getAbsolutePath();
+
+            ProcessBuilder pb = new ProcessBuilder(pythonPath, scriptPath);
+            pb.inheritIO(); // 这样 Python 的输出会直接显示在 IDEA 的运行窗口里
+            pb.start();
+
+            return "已尝试启动 Python 脚本，请在浏览器中完成登录";
+        } catch (Exception e) {
+            return "启动 Python 失败: " + e.getMessage();
+        }
     }
 }

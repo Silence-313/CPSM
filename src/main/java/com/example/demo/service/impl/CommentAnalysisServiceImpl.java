@@ -8,9 +8,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -33,18 +31,22 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
         String maxId = "0";
         int totalPages = 0;
         int maxPageLimit = 100;
+        Set<String> visitedMaxIds = new HashSet<>();
 
         try {
             while (totalPages < maxPageLimit) {
-                // 1. 发起请求
                 String json = httpUtils.getWeiboCommentsJson(mid, maxId);
-                if (json == null || json.isEmpty()) break;
+                if (json == null) break;
 
                 JsonNode root = objectMapper.readTree(json);
-                if (root.path("ok").asInt() != 1) break;
 
-                // 2. 提取数据
+                // 关键：如果 ok 不是 1，说明 Cookie 失效
+                if (root.path("ok").asInt() != 1) {
+                    return new AnalysisResultVO(0, 0, 0, null, "微博登录凭证已过期，请运行 Python 脚本更新 Cookie");
+                }
+
                 JsonNode data = root.path("data");
+
                 if (data.isArray() && data.size() > 0) {
                     data.forEach(allComments::add);
                 } else {
@@ -68,7 +70,7 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
 
                 // --- 安全防线：频率限制 ---
                 // 抓全量评论必须慢！建议每页随机等待 1-2 秒，模拟人类翻页
-                Thread.sleep(1000 + (int)(Math.random() * 1000));
+                Thread.sleep(1500 + (int)(Math.random() * 1000));
             }
 
             // --- 第二部分：统一处理抓取到的所有评论 ---
@@ -98,8 +100,7 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
             return new AnalysisResultVO(pos, neu, neg, snippets, null);
 
         } catch (Exception e) {
-            e.printStackTrace();
-            return new AnalysisResultVO(0, 0, 0, null, "分析失败: " + e.getMessage());
+            return new AnalysisResultVO(0, 0, 0, null, "分析异常: " + e.getMessage());
         }
     }
 
