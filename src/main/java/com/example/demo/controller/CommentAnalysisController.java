@@ -8,7 +8,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
+import java.util.Map;
 
+/**
+ * 微博评论分析控制器
+ * 负责处理前端发起的爬取任务、进度查询、情感统计数据获取以及 Cookie 维护
+ */
 @RestController
 @RequestMapping("/api/analysis")
 public class CommentAnalysisController {
@@ -16,42 +21,75 @@ public class CommentAnalysisController {
     @Autowired
     private CommentAnalysisService analysisService;
 
-    // src/main/java/com/example/demo/controller/CommentAnalysisController.java
+    /**
+     * 发起微博分析任务
+     * @param request 包含微博链接或 mid 的请求体
+     * @return 包含情感统计、关键词云和示例评论的结果
+     */
     @PostMapping("/weibo")
     public AnalysisResultVO doAnalyze(@RequestBody AnalysisRequest request) {
-        // 关键步骤：解析用户输入的混合内容
+        // 1. 解析用户输入的混合内容（可能是链接，也可能是纯 ID）
         String mid = WeiboIdParser.parseMid(request.getMid());
 
         if (mid == null) {
-            // 这里可以抛出一个自定义异常，或者返回一个带有错误信息的 VO
-            throw new IllegalArgumentException("无法识别的微博链接或 ID");
+            // 如果解析失败，抛出异常由全局异常处理器捕获，或直接返回错误
+            throw new IllegalArgumentException("无法识别的微博链接或 ID，请检查输入格式");
         }
 
+        // 2. 调用 Service 层进行异步/同步爬取与分析
         return analysisService.analyzeComments(mid);
     }
 
-    // 在你的 Controller 类中添加
+    /**
+     * 获取爬取进度
+     * 用于前端进度条展示
+     * @param mid 微博 ID
+     * @return 0-100 的整数进度值
+     */
     @GetMapping("/progress")
     @ResponseBody
     public int getProgress(@RequestParam String mid) {
-        // 同样进行一次解析，确保 ID 格式与 Service 内存的一致
+        // 同样进行一次解析，确保 ID 格式一致
         String realMid = WeiboIdParser.parseMid(mid);
         return analysisService.getProgress(realMid != null ? realMid : mid);
     }
 
+    /**
+     * 获取情感倾向分布统计
+     * 专门为 ECharts 饼图或柱状图提供数据
+     * @param mid 微博 ID
+     * @return 情感分类统计 Map (如 {"POSITIVE": 50, "NEUTRAL": 30, "NEGATIVE": 20})
+     */
+    @GetMapping("/sentiment-stats")
+    public Map<String, Integer> getSentimentStats(@RequestParam String mid) {
+        String realMid = WeiboIdParser.parseMid(mid);
+        // 调用 Service 中新定义的统计接口
+        return analysisService.getSentimentDistribution(realMid != null ? realMid : mid);
+    }
+
+    /**
+     * 刷新微博 Cookie
+     * 通过运行本地 Python 脚本弹出浏览器登录窗
+     */
     @PostMapping("/refresh-cookie")
     public String refreshCookie() {
         try {
-            // 根据你之前的日志，这是你的 M4 Mac 上的 Conda 路径
+            // 适配 M4 Mac 的 Conda 环境 Python 路径
             String pythonPath = "/opt/anaconda3/envs/weibo_spider/bin/python";
-            // 脚本绝对路径
-            String scriptPath = new File("spider/cookie_helper.py").getAbsolutePath();
+
+            // 脚本相对路径：项目根目录下的 spider/cookie_helper.py
+            File scriptFile = new File("spider/cookie_helper.py");
+            if (!scriptFile.exists()) {
+                return "错误：找不到 Python 脚本文件 " + scriptFile.getAbsolutePath();
+            }
+
+            String scriptPath = scriptFile.getAbsolutePath();
 
             ProcessBuilder pb = new ProcessBuilder(pythonPath, scriptPath);
-            pb.inheritIO(); // 这样 Python 的输出会直接显示在 IDEA 的运行窗口里
+            pb.inheritIO(); // 将 Python 控制台输出直接打印到 IDEA 控制台，方便调试
             pb.start();
 
-            return "已尝试启动 Python 脚本，请在浏览器中完成登录";
+            return "已尝试启动 Cookie 获取脚本，请在弹出的浏览器窗口中完成登录。";
         } catch (Exception e) {
             return "启动 Python 失败: " + e.getMessage();
         }

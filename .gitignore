@@ -34,3 +34,5 @@ build/
 
 ### Weibo Config ###
 /spider/weibo_config.json
+
+*.dic

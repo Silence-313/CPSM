@@ -132,7 +132,7 @@
         </div>
     </div>
 </div>
-
+<script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
 <script>
     const { createApp, ref, nextTick } = Vue;
 
@@ -171,6 +171,26 @@
                 });
             };
 
+            // 在 initSentimentChart 之后添加
+            const initWordCloud = (data) => {
+                const chart = echarts.init(document.getElementById('wordCloudChart'));
+                chart.setOption({
+                    series: [{
+                        type: 'wordCloud',
+                        shape: 'circle',
+                        gridSize: 8,
+                        sizeRange: [12, 50],
+                        rotationRange: [-45, 90],
+                        textStyle: {
+                            fontFamily: 'sans-serif',
+                            fontWeight: 'bold',
+                            color: () => `rgb(${Math.round(Math.random()*160)}, ${Math.round(Math.random()*160)}, 160)`
+                        },
+                        data: data // 后端传回的 {name: "关键词", value: 100} 数组
+                    }]
+                });
+            };
+
             const startAnalysis = async () => {
                 if (!weiboUrl.value) return alert('请输入微博链接或 ID');
 
@@ -202,30 +222,32 @@
                     const response = await fetch('/api/analysis/weibo', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        // 这里的 Key 必须对应你后端 DTO 的字段 getMid() -> mid
                         body: JSON.stringify({ mid: weiboUrl.value })
                     });
 
-                    if (!response.ok) throw new Error('响应异常');
                     const resData = await response.json();
-
                     if (resData.errorMsg) {
-                        alert('分析失败：' + resData.errorMsg);
+                        alert('失败：' + resData.errorMsg);
                     } else {
                         hasResult.value = true;
                         topComments.value = resData.topComments || [];
-                        const chartData = [
-                            { value: resData.positive, name: '正面倾向' },
-                            { value: resData.neutral, name: '中性观点' },
-                            { value: resData.negative, name: '负面情绪' }
-                        ];
-                        await nextTick();
-                        initSentimentChart(chartData);
-                    }
 
+                        await nextTick(); // 确保 DOM 已渲染[cite: 9]
+
+                        // 1. 渲染情感饼图[cite: 9]
+                        initSentimentChart([
+                            { value: resData.positive, name: '正面' },
+                            { value: resData.neutral, name: '中性' },
+                            { value: resData.negative, name: '负面' }
+                        ]);
+
+                        // 2. 渲染词云图 (新增)
+                        if (resData.wordCloudData) {
+                            initWordCloud(resData.wordCloudData);
+                        }
+                    }
                 } catch (error) {
-                    console.error('Analysis Error:', error);
-                    alert('系统繁忙，请稍后再试');
+                    console.error('Error:', error);
                 } finally {
                     loading.value = false;
                     progress.value = 100;

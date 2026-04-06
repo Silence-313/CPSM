@@ -1,20 +1,22 @@
-// src/main/java/com/example/demo/vo/AnalysisResultVO.java
 package com.example.demo.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.util.List;
+import java.util.Map;
 
 @Data
-@NoArgsConstructor  // 生成无参构造函数：public AnalysisResultVO() {}
-@AllArgsConstructor // 生成全参构造函数：按照字段定义顺序生成
+@NoArgsConstructor
+@AllArgsConstructor
 public class AnalysisResultVO {
     private int positive;
     private int neutral;
     private int negative;
     private List<CommentSnippet> topComments;
     private String errorMsg;
+    // 新增：词云数据，格式为 [{name: "词语", value: 次数}, ...]
+    private List<Map<String, Object>> wordCloudData;
 
     @Data
     @AllArgsConstructor
