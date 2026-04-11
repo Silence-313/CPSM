@@ -28,16 +28,43 @@ public class CommentAnalysisController {
      */
     @PostMapping("/weibo")
     public AnalysisResultVO doAnalyze(@RequestBody AnalysisRequest request) {
-        // 1. 解析用户输入的混合内容（可能是链接，也可能是纯 ID）
+        // 1. 解析微博ID
         String mid = WeiboIdParser.parseMid(request.getMid());
-
         if (mid == null) {
-            // 如果解析失败，抛出异常由全局异常处理器捕获，或直接返回错误
             throw new IllegalArgumentException("无法识别的微博链接或 ID，请检查输入格式");
         }
 
-        // 2. 调用 Service 层进行异步/同步爬取与分析
+        // 2. 先刷新 Cookie（同步等待脚本执行完成）
+        refreshCookieSync();
+
+        // 3. 执行分析
         return analysisService.analyzeComments(mid);
+    }
+
+    /**
+     * 同步刷新 Cookie（等待 Python 脚本执行结束）
+     */
+    private void refreshCookieSync() {
+        try {
+            String pythonPath = "/opt/anaconda3/envs/weibo_spider/bin/python";
+            File scriptFile = new File("spider/cookie_helper.py");
+            if (!scriptFile.exists()) {
+                System.err.println("警告：Cookie 刷新脚本不存在，跳过刷新。路径：" + scriptFile.getAbsolutePath());
+                return;
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(pythonPath, scriptFile.getAbsolutePath());
+            pb.inheritIO(); // 将脚本输出打印到控制台
+            Process process = pb.start();
+            int exitCode = process.waitFor(); // 等待脚本执行结束
+            if (exitCode == 0) {
+                System.out.println("Cookie 刷新成功。");
+            } else {
+                System.err.println("Cookie 刷新脚本执行失败，退出码：" + exitCode);
+            }
+        } catch (Exception e) {
+            System.err.println("刷新 Cookie 时发生异常：" + e.getMessage());
+        }
     }
 
     /**

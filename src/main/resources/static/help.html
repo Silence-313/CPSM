@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>如何获取微博正文 ID / 链接 - 帮助中心</title>
+  <style>
+    :root {
+      --primary: #ff8200;
+      --bg: #f4f7f9;
+    }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      padding: 30px 20px;
+    }
+    .help-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      padding: 30px 40px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+    }
+    h1 {
+      color: #333;
+      border-left: 6px solid var(--primary);
+      padding-left: 20px;
+      margin-top: 0;
+    }
+    h2 {
+      color: #444;
+      margin-top: 30px;
+      font-size: 1.3rem;
+    }
+    .step {
+      margin-bottom: 30px;
+    }
+    .step p {
+      line-height: 1.7;
+      color: #555;
+    }
+    .note {
+      background: #fff8e6;
+      border-left: 4px solid var(--primary);
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .back-link {
+      display: inline-block;
+      margin-top: 30px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #d14;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      margin: 15px 0;
+      border: 1px solid #eee;
+    }
+    .url-example {
+      background: #f6f8fa;
+      padding: 10px 15px;
+      border-radius: 8px;
+      word-break: break-all;
+      font-family: monospace;
+      border: 1px solid #e1e4e8;
+    }
+  </style>
+</head>
+<body>
+<div class="help-container">
+  <h1>📘 如何获取微博正文 ID 或链接</h1>
+
+  <div class="step">
+    <h2>📱 方法一：手机端（推荐）</h2>
+    <p>1. 打开微博 App 或手机浏览器访问 <code>m.weibo.cn</code>。</p>
+    <p>2. 找到您想要分析的微博正文，点击右上角的 <strong>「···」</strong> 或分享按钮。</p>
+    <p>3. 选择 <strong>「复制链接」</strong>。</p>
+    <p>4. 粘贴到输入框中即可，系统会自动识别。</p>
+    <div class="url-example">
+      示例链接：<br>
+      https://m.weibo.cn/detail/4876543210987654
+    </div>
+    <p>✅ 链接中包含的 <code>4876543210987654</code> 就是微博 ID（MID）。</p>
+  </div>
+
+  <div class="step">
+    <h2>💻 方法二：电脑网页端</h2>
+    <p>1. 用浏览器打开微博官网 <code>weibo.com</code> 并登录。</p>
+    <p>2. 点击进入某条微博的<strong>发布时间</strong>。</p>
+    <p>3. 此时浏览器地址栏的网址就是微博链接，例如：</p>
+    <div class="url-example">
+      https://weibo.com/1234567890/AbCdEfGhI
+    </div>
+    <p>4. 直接复制整段网址，粘贴到分析页面的输入框即可。</p>
+    <div class="note">
+      💡 网页版链接中的 <code>AbCdEfGhI</code> 是短 ID，系统会自动转换为数字 MID，无需手动处理。
+    </div>
+  </div>
+
+  <div class="step">
+    <h2>🔢 方法三：直接使用数字 ID</h2>
+    <p>如果您知道微博的数字 ID（通常为 16 位左右纯数字），可以直接输入。</p>
+    <p>例如：<code>4876543210987654</code></p>
+    <p>该 ID 可以从微博正文页的网页源代码中查找，或通过第三方工具获取。</p>
+  </div>
+
+  <div class="note">
+    <strong>✨ 小贴士</strong><br>
+    • 任何包含微博正文的链接（无论是 <code>m.weibo.cn</code> 还是 <code>weibo.com</code>）均可直接粘贴，系统会自动提取 ID。<br>
+    • 若不确定，直接将复制的链接完整粘贴即可，无需手动提取数字。
+  </div>
+
+  <a href="javascript:window.close();" class="back-link">← 关闭页面返回分析</a>
+</div>
+</body>
+</html>

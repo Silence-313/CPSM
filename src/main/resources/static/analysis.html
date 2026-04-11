@@ -10,6 +10,7 @@
         :root {
             --primary: #ff8200;
             --success: #52c41a;
+            --warning: #faad14;
             --danger: #f5222d;
             --bg: #f4f7f9;
         }
@@ -17,7 +18,6 @@
 
         .analysis-container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
 
-        /* 顶部导航与搜索 */
         .header-card {
             background: white;
             padding: 30px;
@@ -51,13 +51,16 @@
             cursor: pointer;
             font-weight: bold;
         }
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
 
-        /* 结果展示区 */
         .result-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
-            opacity: 0; /* 默认隐藏，分析后显示 */
+            opacity: 0;
             transition: opacity 0.5s;
         }
         .result-grid.active { opacity: 1; }
@@ -78,6 +81,94 @@
             color: #666;
             display: inline-block;
         }
+
+        /* 筛选按钮组 */
+        .filter-buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-btn {
+            padding: 8px 20px;
+            border: 1px solid #ddd;
+            border-radius: 30px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            color: #666;
+        }
+        .filter-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        .filter-btn .count {
+            margin-left: 6px;
+            font-weight: normal;
+            opacity: 0.8;
+        }
+
+        /* 评论列表 */
+        .comment-list {
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .comment-item {
+            padding: 14px 18px;
+            border-bottom: 1px solid #eee;
+            background: white;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .comment-item:last-child {
+            border-bottom: none;
+        }
+        .comment-content {
+            flex: 1;
+            color: #333;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        .sentiment-tag {
+            min-width: 52px;
+            text-align: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            background: #f0f0f0;
+            color: #666;
+        }
+        .sentiment-positive { background: #f6ffed; color: var(--success); border: 1px solid #b7eb8f; }
+        .sentiment-neutral { background: #fffbe6; color: var(--warning); border: 1px solid #ffe58f; }
+        .sentiment-negative { background: #fff2f0; color: var(--danger); border: 1px solid #ffccc7; }
+
+        .empty-tip {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .help-btn {
+            background: #f0f0f0;
+            color: #666;
+            border: 1px solid #ddd;
+            padding: 0 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: normal;
+            white-space: nowrap;
+        }
+        .help-btn:hover {
+            background: #e0e0e0;
+        }
     </style>
 </head>
 <body>
@@ -94,6 +185,7 @@
             <button class="analyze-btn" @click="startAnalysis" :disabled="loading">
                 {{ loading ? '解析中...' : '开始分析' }}
             </button>
+            <button class="help-btn" @click="openHelp">不知道如何获取ID？</button>
         </div>
         <div v-if="loading && !hasResult" style="margin-top: 25px;">
             <div style="width: 100%; background: #eee; border-radius: 10px; height: 12px; overflow: hidden;">
@@ -118,36 +210,111 @@
         </div>
 
         <div class="chart-card full-width">
-            <h3>💬 典型评论摘要</h3>
-            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-                <tr v-for="item in topComments" :key="item.id" style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 12px; color: #444;">{{ item.text }}</td>
-                    <td style="width: 80px; text-align: right;">
-            <span :style="{ color: item.sentiment > 0.5 ? 'var(--success)' : 'var(--danger)' }">
-              {{ item.sentiment > 0.5 ? '正面' : '负面' }}
-            </span>
-                    </td>
-                </tr>
-            </table>
+            <h3>💬 全部评论 (共 {{ allComments.length }} 条)</h3>
+
+            <!-- 筛选按钮 -->
+            <div class="filter-buttons">
+                <div class="filter-btn" :class="{ active: filterType === 'all' }" @click="filterType = 'all'">
+                    全部 <span class="count">({{ stats.all }})</span>
+                </div>
+                <div class="filter-btn" :class="{ active: filterType === 'positive' }" @click="filterType = 'positive'">
+                    😊 正面 <span class="count">({{ stats.positive }})</span>
+                </div>
+                <div class="filter-btn" :class="{ active: filterType === 'neutral' }" @click="filterType = 'neutral'">
+                    😐 中性 <span class="count">({{ stats.neutral }})</span>
+                </div>
+                <div class="filter-btn" :class="{ active: filterType === 'negative' }" @click="filterType = 'negative'">
+                    😞 负面 <span class="count">({{ stats.negative }})</span>
+                </div>
+            </div>
+
+            <!-- 评论列表 -->
+            <div class="comment-list" v-if="filteredComments.length > 0">
+                <div v-for="(item, idx) in filteredComments" :key="idx" class="comment-item">
+                    <div class="comment-content">{{ item.text }}</div>
+                    <div class="sentiment-tag" :class="getSentimentClass(item.sentiment)">
+                        {{ getSentimentLabel(item.sentiment) }}
+                    </div>
+                </div>
+            </div>
+            <div v-else class="empty-tip">
+                暂无此类评论
+            </div>
         </div>
     </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
 <script>
-    const { createApp, ref, nextTick } = Vue;
+    const { createApp, ref, computed, nextTick } = Vue;
 
     createApp({
         setup() {
             const weiboUrl = ref('');
             const loading = ref(false);
             const hasResult = ref(false);
-            const topComments = ref([]);
+
+            // 存储后端返回的所有评论数据 (包含text和sentiment)
+            const allComments = ref([]);
+
+            // 筛选类型: 'all', 'positive', 'neutral', 'negative'
+            const filterType = ref('all');
 
             const progress = ref(0);
             const statusText = ref('准备启动爬虫引擎...');
             let sentimentChart = null;
 
             const goBack = () => window.location.href = 'portal.html';
+            const openHelp = () => {
+                window.open('help.html', '_blank');
+            };
+            // 情感阈值定义
+            const POS_THRESHOLD = 0.3;
+            const NEG_THRESHOLD = -0.3;
+
+            // 根据分数获取情感类型
+            const getSentimentType = (score) => {
+                if (score > POS_THRESHOLD) return 'positive';
+                if (score < NEG_THRESHOLD) return 'negative';
+                return 'neutral';
+            };
+
+            // 统计各类型数量
+            const stats = computed(() => {
+                const pos = allComments.value.filter(c => c.sentiment > POS_THRESHOLD).length;
+                const neg = allComments.value.filter(c => c.sentiment < NEG_THRESHOLD).length;
+                const neu = allComments.value.length - pos - neg;
+                return {
+                    all: allComments.value.length,
+                    positive: pos,
+                    neutral: neu,
+                    negative: neg
+                };
+            });
+
+            // 根据筛选条件过滤评论
+            const filteredComments = computed(() => {
+                if (filterType.value === 'all') return allComments.value;
+                return allComments.value.filter(c => getSentimentType(c.sentiment) === filterType.value);
+            });
+
+            // 获取情感显示标签
+            const getSentimentLabel = (score) => {
+                const type = getSentimentType(score);
+                if (type === 'positive') return '正面';
+                if (type === 'negative') return '负面';
+                return '中性';
+            };
+
+            // 获取情感标签样式类
+            const getSentimentClass = (score) => {
+                const type = getSentimentType(score);
+                return {
+                    'sentiment-positive': type === 'positive',
+                    'sentiment-neutral': type === 'neutral',
+                    'sentiment-negative': type === 'negative'
+                };
+            };
 
             // 初始化/更新饼图
             const initSentimentChart = (data) => {
@@ -171,7 +338,6 @@
                 });
             };
 
-            // 在 initSentimentChart 之后添加
             const initWordCloud = (data) => {
                 const chart = echarts.init(document.getElementById('wordCloudChart'));
                 chart.setOption({
@@ -186,7 +352,7 @@
                             fontWeight: 'bold',
                             color: () => `rgb(${Math.round(Math.random()*160)}, ${Math.round(Math.random()*160)}, 160)`
                         },
-                        data: data // 后端传回的 {name: "关键词", value: 100} 数组
+                        data: data
                     }]
                 });
             };
@@ -195,19 +361,15 @@
                 if (!weiboUrl.value) return alert('请输入微博链接或 ID');
 
                 loading.value = true;
-                hasResult.value = false; // 重置显示状态
-                progress.value = 0; // 重置进度
+                hasResult.value = false;
+                progress.value = 0;
 
-                // --- 开启轮询：每 800ms 查一次进度 ---
                 const progressTimer = setInterval(async () => {
                     try {
-                        // 确保这个 URL 能在浏览器直接访问并返回数字
                         const res = await fetch(`/api/analysis/progress?mid=${encodeURIComponent(weiboUrl.value)}`);
                         if (res.ok) {
                             const val = await res.json();
                             progress.value = val;
-
-                            // 联动文案：让 53% 看起来也是在工作的
                             if (val < 20) statusText.value = "初始化爬虫环境...";
                             else if (val < 55) statusText.value = "正在深度并发抓取历史评论...";
                             else if (val < 95) statusText.value = "正在清洗无效数据并进行分词...";
@@ -230,18 +392,19 @@
                         alert('失败：' + resData.errorMsg);
                     } else {
                         hasResult.value = true;
-                        topComments.value = resData.topComments || [];
+                        // 保存所有评论数据
+                        allComments.value = resData.topComments || [];
+                        // 默认展示全部
+                        filterType.value = 'all';
 
-                        await nextTick(); // 确保 DOM 已渲染[cite: 9]
+                        await nextTick();
 
-                        // 1. 渲染情感饼图[cite: 9]
                         initSentimentChart([
                             { value: resData.positive, name: '正面' },
                             { value: resData.neutral, name: '中性' },
                             { value: resData.negative, name: '负面' }
                         ]);
 
-                        // 2. 渲染词云图 (新增)
                         if (resData.wordCloudData) {
                             initWordCloud(resData.wordCloudData);
                         }
@@ -249,15 +412,18 @@
                 } catch (error) {
                     console.error('Error:', error);
                 } finally {
+                    clearInterval(progressTimer);
                     loading.value = false;
                     progress.value = 100;
                 }
             };
 
             return {
-                weiboUrl, loading, hasResult, topComments,
-                progress, statusText, // 记得暴露给模板
-                startAnalysis, goBack
+                weiboUrl, loading, hasResult, allComments,
+                progress, statusText, filterType,
+                stats, filteredComments,
+                getSentimentLabel, getSentimentClass,
+                startAnalysis, goBack, openHelp
             };
         }
     }).mount('#app');

@@ -61,7 +61,12 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
                 JsonNode data = root.path("data");
                 if (data.isArray() && data.size() > 0) {
                     for (JsonNode node : data) {
-                        allComments.add(node);
+                        // 过滤条件：检查是否存在 rootid 字段，若不存在或与自身 id 相同，则为顶级评论
+                        JsonNode rootidNode = node.path("rootid");
+                        if (rootidNode.isMissingNode() || rootidNode.asText().isEmpty() ||
+                                rootidNode.asText().equals(node.path("id").asText())) {
+                            allComments.add(node);
+                        }
                     }
                 } else {
                     break;
@@ -91,15 +96,29 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
         int pos = 0, neu = 0, neg = 0;
 
         for (JsonNode node : allComments) {
-            String content = node.path("text_raw").asText(); // 修正：去掉已过时的参数
+            // 在 processAnalysis 方法中，获取 content 后立即清洗
+            String content = node.path("text_raw").asText();
             if (content.isEmpty()) continue;
+
+            // 新增：去除微博表情标签 [xxx]
+            content = content.replaceAll("\\[[^\\]]+\\]", "");
+            // 可选：去除多余空格
+            content = content.trim();
+            if (content.isEmpty()) continue;  // 若清洗后为空，则跳过该评论
 
             double score = sentimentAnalyzer.analyzeScore(content);
 
             String type;
-            if (score > 0.5) { pos++; type = "POSITIVE"; }
-            else if (score < -0.5) { neg++; type = "NEGATIVE"; }
-            else { neu++; type = "NEUTRAL"; }
+            if (score > 0.3) {           // 正面阈值可调低一些
+                pos++; type = "POSITIVE";
+            } else if (score < -0.3) {   // 负面阈值
+                neg++; type = "NEGATIVE";
+            } else {
+                neu++; type = "NEUTRAL";
+            }
+
+            System.out.println("评论文本：" + content);
+            System.out.println("情感得分：" + score);
 
             WeiboComment comment = new WeiboComment();
             comment.setMid(mid); // 现在 mid 可用了
@@ -108,9 +127,8 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
             comment.setSentimentType(type);
             commentEntities.add(comment);
 
-            if (snippets.size() < 10) {
-                snippets.add(new AnalysisResultVO.CommentSnippet(content, score));
-            }
+            snippets.add(new AnalysisResultVO.CommentSnippet(content, score));
+
 
             // 分词逻辑
             Result res = ToAnalysis.parse(content);

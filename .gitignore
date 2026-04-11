@@ -36,3 +36,5 @@ build/
 /spider/weibo_config.json
 
 *.dic
+
+*.xlsx

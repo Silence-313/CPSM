@@ -21,63 +21,105 @@ public class SentimentAnalyzer {
     @PostConstruct
     public void init() {
         try {
+
+            System.out.println("=== 新版 SentimentAnalyzer 被调用 ===");
+
             loadDict("dict/pos_words.txt", posWords);
             loadDict("dict/neg_words.txt", negWords);
             loadDict("dict/not_words.txt", notWords);
             loadDegreeDict("dict/degree_words.txt", degreeWords);
+            System.out.println("积极词数量：" + posWords.size());
+            System.out.println("消极词数量：" + negWords.size());
+            System.out.println("否定词数量：" + notWords.size());
+            System.out.println("程度副词数量：" + degreeWords.size());
         } catch (Exception e) {
             System.err.println("词典加载失败: " + e.getMessage());
         }
     }
 
+    /**
+     * 分析文本情感得分 (修复版)
+     */
     public double analyzeScore(String text) {
         if (text == null || text.isEmpty()) return 0;
 
         Result result = ToAnalysis.parse(text);
         List<Term> terms = result.getTerms();
 
-        double totalScore = 0;
-        double currentDegree = 1.0;
-        int negativeFlip = 1;
+        double totalScore = 0.0;
+        int matchCount = 0;               // 记录匹配到的情感词数量，用于归一化
 
-        for (Term term : terms) {
+        // 滑动窗口扫描，处理否定词、程度副词与情感词的组合
+        for (int i = 0; i < terms.size(); i++) {
+            Term term = terms.get(i);
             String word = term.getName();
 
-            if (notWords.contains(word)) {
-                negativeFlip *= -1; // 遇到否定词，情感反向
-            } else if (degreeWords.containsKey(word)) {
-                currentDegree = degreeWords.get(word); // 更新程度副词权重
-            } else if (posWords.contains(word)) {
-                totalScore += (1.0 * currentDegree * negativeFlip);
-                resetWeight(currentDegree, negativeFlip); // 使用后重置
+            // 如果是情感词，向前查找否定词和程度副词
+            double polarity = 0.0;
+            if (posWords.contains(word)) {
+                polarity = 1.0;
             } else if (negWords.contains(word)) {
-                totalScore += (-1.5 * currentDegree * negativeFlip); // 消极词通常权重更高
-                resetWeight(currentDegree, negativeFlip);
+                polarity = -1.5;   // 负面词基础权重略高
+            } else {
+                continue;          // 非情感词跳过
+            }
+
+            // 向前搜索否定词 (最多向前2个词)
+            boolean hasNot = false;
+            double degree = 1.0;
+            for (int j = Math.max(0, i - 2); j < i; j++) {
+                String prevWord = terms.get(j).getName();
+                if (notWords.contains(prevWord)) {
+                    hasNot = !hasNot;      // 双重否定 = 肯定
+                }
+                if (degreeWords.containsKey(prevWord)) {
+                    degree *= degreeWords.get(prevWord);
+                }
+            }
+
+            // 应用情感反转
+            if (hasNot) {
+                polarity *= -1.0;
+            }
+            // 应用程度权重
+            polarity *= degree;
+
+            totalScore += polarity;
+            matchCount++;
+        }
+
+        // 归一化：避免长文本得分过高，同时处理无匹配情况
+        if (matchCount == 0) {
+            return 0.0;
+        }
+        return totalScore / Math.sqrt(matchCount);  // 开方归一化，使分数范围更合理
+    }
+
+    // 加载普通词典
+    private void loadDict(String path, Set<String> set) throws Exception {
+        ClassPathResource resource = new ClassPathResource(path);
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(resource.getInputStream()))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty()) {
+                    set.add(trimmed);
+                }
             }
         }
-        return totalScore;
     }
 
-    private void resetWeight(Double d, Integer n) {
-        d = 1.0; n = 1;
-    }
-
-    // 读取普通词典的方法
-    private void loadDict(String path, Set<String> set) throws Exception {
-        BufferedReader br = new BufferedReader(new InputStreamReader(new ClassPathResource(path).getInputStream()));
-        String line;
-        while ((line = br.readLine()) != null) {
-            if (!line.trim().isEmpty()) set.add(line.trim());
-        }
-    }
-
-    // 读取带权重的程度副词词典
+    // 加载带权重的程度副词词典
     private void loadDegreeDict(String path, Map<String, Double> map) throws Exception {
-        BufferedReader br = new BufferedReader(new InputStreamReader(new ClassPathResource(path).getInputStream()));
-        String line;
-        while ((line = br.readLine()) != null) {
-            String[] parts = line.split(":");
-            if (parts.length == 2) map.put(parts[0], Double.parseDouble(parts[1]));
+        ClassPathResource resource = new ClassPathResource(path);
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(resource.getInputStream()))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.trim().split(":");
+                if (parts.length == 2) {
+                    map.put(parts[0], Double.parseDouble(parts[1]));
+                }
+            }
         }
     }
 }
