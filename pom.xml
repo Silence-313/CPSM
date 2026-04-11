@@ -128,22 +128,10 @@
         <!-- ==================== Spring AI 新增依赖 ==================== -->
 
         <!-- OpenAI 兼容接口客户端（支持 DeepSeek、Qwen、Ollama、SiliconFlow 等） -->
-<!--        <dependency>-->
-<!--            <groupId>org.springframework.ai</groupId>-->
-<!--            <artifactId>spring-ai-starter-model-openai</artifactId>-->
-<!--        </dependency>-->
-
-        <!-- Google Gemini 专用客户端 -->
-<!--        <dependency>-->
-<!--            <groupId>org.springframework.ai</groupId>-->
-<!--            <artifactId>spring-ai-starter-model-google-genai</artifactId>-->
-<!--        </dependency>-->
-
-        <!-- Ollama 本地模型客户端 -->
-<!--        <dependency>-->
-<!--            <groupId>org.springframework.ai</groupId>-->
-<!--            <artifactId>spring-ai-starter-model-ollama</artifactId>-->
-<!--        </dependency>-->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
 
     </dependencies>
 
