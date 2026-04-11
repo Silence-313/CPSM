@@ -1,7 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.entity.User;
-import com.example.demo.repository.UserMapper;
+import com.example.demo.mapper.UserMapper;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;

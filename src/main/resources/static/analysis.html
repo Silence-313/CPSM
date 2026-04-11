@@ -169,6 +169,90 @@
         .help-btn:hover {
             background: #e0e0e0;
         }
+
+        .history-panel {
+            position: fixed;
+            right: 20px;
+            top: 100px;
+            width: 280px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 20px;
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+            z-index: 100;
+        }
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .history-header h4 {
+            margin: 0;
+            color: #333;
+        }
+        .history-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .history-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .history-item:hover {
+            background: #f5f5f5;
+        }
+        .history-item span:hover {
+            color: #f5222d !important;
+        }
+        .history-mid {
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+        .history-time {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 8px;
+        }
+        .history-stats {
+            display: flex;
+            gap: 10px;
+            font-size: 12px;
+        }
+        .stat-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 3px;
+        }
+        .stat-positive { background: var(--success); }
+        .stat-neutral { background: var(--warning); }
+        .stat-negative { background: var(--danger); }
+        .history-toggle {
+            position: fixed;
+            right: 20px;
+            top: 60px;
+            z-index: 101;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 30px;
+            padding: 8px 16px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .history-panel.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -242,11 +326,50 @@
             </div>
         </div>
     </div>
+    <!-- 历史记录切换按钮 -->
+    <div class="history-toggle" @click="showHistory = !showHistory">
+        📋 {{ showHistory ? '隐藏' : '查看' }}历史记录
+    </div>
+
+    <!-- 历史记录面板 -->
+    <div class="history-panel" :class="{ hidden: !showHistory }">
+        <div class="history-header">
+            <h4>📚 我的分析历史</h4>
+            <div style="display: flex; gap: 10px;">
+                <span style="cursor: pointer;" @click="fetchHistory" title="刷新">🔄</span>
+                <span style="cursor: pointer; color: #f5222d;" @click="clearAllHistory" title="清空全部历史">🗑️</span>
+            </div>
+        </div>
+        <div v-if="historyLoading" style="text-align: center; padding: 20px;">加载中...</div>
+        <ul v-else class="history-list">
+            <li v-for="item in historyList" :key="item.mid" class="history-item">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1;" @click="viewHistory(item)">
+                        <div class="history-mid" :title="'MID: ' + item.mid">
+                            {{ item.weiboTitle || item.mid }}
+                        </div>
+                        <div class="history-time">{{ formatTime(item.lastAnalyzeTime) }}</div>
+                        <div class="history-stats">
+                            <span><span class="stat-dot stat-positive"></span>{{ item.positiveCount }}</span>
+                            <span><span class="stat-dot stat-neutral"></span>{{ item.neutralCount }}</span>
+                            <span><span class="stat-dot stat-negative"></span>{{ item.negativeCount }}</span>
+                            <span style="margin-left: auto;">共{{ item.totalComments }}条</span>
+                        </div>
+                    </div>
+                    <span style="cursor: pointer; color: #999; font-size: 16px; padding: 4px;"
+                          @click.stop="deleteHistoryItem(item.mid)" title="删除此记录">✕</span>
+                </div>
+            </li>
+            <li v-if="historyList.length === 0" style="text-align: center; color: #999; padding: 20px;">
+                暂无历史记录
+            </li>
+        </ul>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
 <script>
-    const { createApp, ref, computed, nextTick } = Vue;
+    const { createApp, ref, computed, nextTick, onMounted } = Vue;
 
     createApp({
         setup() {
@@ -338,6 +461,47 @@
                 });
             };
 
+            const deleteHistoryItem = async (mid) => {
+                if (!confirm('确定删除这条历史记录吗？')) return;
+                try {
+                    const res = await fetch(`/api/analysis/history/${encodeURIComponent(mid)}`, {
+                        method: 'DELETE'
+                    });
+                    if (res.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    if (res.ok) {
+                        // 刷新历史列表
+                        await fetchHistory();
+                    } else {
+                        alert('删除失败');
+                    }
+                } catch (e) {
+                    console.error('删除失败', e);
+                }
+            };
+
+            const clearAllHistory = async () => {
+                if (!confirm('确定清空全部历史记录吗？此操作不可恢复。')) return;
+                try {
+                    const res = await fetch('/api/analysis/history', {
+                        method: 'DELETE'
+                    });
+                    if (res.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    if (res.ok) {
+                        historyList.value = [];
+                    } else {
+                        alert('清空失败');
+                    }
+                } catch (e) {
+                    console.error('清空失败', e);
+                }
+            };
+
             const initWordCloud = (data) => {
                 const chart = echarts.init(document.getElementById('wordCloudChart'));
                 chart.setOption({
@@ -387,10 +551,15 @@
                         body: JSON.stringify({ mid: weiboUrl.value })
                     });
 
+                    if (response.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+
                     const resData = await response.json();
                     if (resData.errorMsg) {
                         alert('失败：' + resData.errorMsg);
-                    } else {
+                    }else {
                         hasResult.value = true;
                         // 保存所有评论数据
                         allComments.value = resData.topComments || [];
@@ -418,12 +587,103 @@
                 }
             };
 
+            const showHistory = ref(false);
+            const historyList = ref([]);
+            const historyLoading = ref(false);
+
+            const fetchHistory = async () => {
+                historyLoading.value = true;
+                try {
+                    const res = await fetch('/api/analysis/history');
+                    if (res.ok) {
+                        historyList.value = await res.json();
+                    } else if (res.status === 401) {
+                        window.location.href = 'login.html';
+                    }
+                } catch (e) {
+                    console.error('获取历史失败', e);
+                } finally {
+                    historyLoading.value = false;
+                }
+            };
+
+            const formatTime = (timeStr) => {
+                if (!timeStr) return '';
+                const date = new Date(timeStr);
+                return `${date.getMonth()+1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+            };
+
+            const viewHistory = (item) => {
+                // 弹出选择对话框
+                const action = confirm(
+                    `微博ID: ${item.mid}\n` +
+                    `分析时间: ${formatTime(item.lastAnalyzeTime)}\n` +
+                    `正面: ${item.positiveCount}  中性: ${item.neutralCount}  负面: ${item.negativeCount}\n\n` +
+                    `点击"确定"仅查看上次统计结果\n点击"取消"重新抓取分析`
+                );
+
+                if (action) {
+                    // 确定：仅展示历史统计（不重新抓取）
+                    showHistoryResult(item);
+                } else {
+                    // 取消：重新分析
+                    weiboUrl.value = item.mid;
+                    showHistory.value = false;
+                    // 自动触发分析
+                    startAnalysis();
+                }
+            };
+            const showHistoryResult = async (item) => {
+                loading.value = true;
+                try {
+                    const res = await fetch(`/api/analysis/history/detail?mid=${item.mid}`);
+                    if (res.status === 401) {
+                        window.location.href = 'login.html';
+                        return;
+                    }
+                    if (!res.ok) {
+                        alert('获取详情失败');
+                        return;
+                    }
+                    const detail = await res.json();
+
+                    hasResult.value = true;
+                    allComments.value = detail.comments || [];
+                    filterType.value = 'all';
+                    weiboUrl.value = detail.mid;
+
+                    await nextTick();
+                    initSentimentChart([
+                        { value: detail.positiveCount, name: '正面' },
+                        { value: detail.neutralCount, name: '中性' },
+                        { value: detail.negativeCount, name: '负面' }
+                    ]);
+                    if (detail.wordCloudData) {
+                        initWordCloud(detail.wordCloudData);
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('加载历史详情失败');
+                } finally {
+                    loading.value = false;
+                    showHistory.value = false;
+                }
+            };
+
+            onMounted(() => {
+                fetchHistory();
+            });
+
             return {
                 weiboUrl, loading, hasResult, allComments,
                 progress, statusText, filterType,
                 stats, filteredComments,
                 getSentimentLabel, getSentimentClass,
-                startAnalysis, goBack, openHelp
+                startAnalysis, goBack, openHelp,
+                showHistory, historyList, historyLoading,
+                fetchHistory, formatTime, viewHistory, showHistoryResult,
+                deleteHistoryItem, clearAllHistory
+
             };
         }
     }).mount('#app');

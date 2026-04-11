@@ -37,7 +37,7 @@ def fetch_weibo_cookies():
                 }
 
                 # 保存到本地文件
-                with open("weibo_config.json", "w") as f:
+                with open("spider/weibo_config.json", "w") as f:
                     json.dump(result, f)
 
                 print("="*30)

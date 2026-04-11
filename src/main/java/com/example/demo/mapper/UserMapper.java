@@ -1,9 +1,7 @@
-package com.example.demo.repository;
+package com.example.demo.mapper;
 
 import com.example.demo.entity.User;
 import org.apache.ibatis.annotations.*;
-
-import java.util.Map;
 
 @Mapper
 public interface UserMapper {

@@ -3,7 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.dto.HotSearchItem;
 import com.example.demo.dto.StarVO;
 import com.example.demo.entity.MonitorStar;
-import com.example.demo.repository.MonitorStarMapper;
+import com.example.demo.mapper.MonitorStarMapper;
 import com.example.demo.service.WeiboService;
 import com.example.demo.service.impl.WeiboServiceImpl;
 import com.example.demo.utils.HttpUtils;
@@ -122,35 +122,26 @@ public class HotSearchController {
     }
 
     @PostMapping("/star/keyword")
-    public ResponseEntity<String> addKeyword(@RequestParam Integer starId, @RequestParam String keyword) {
-        try {
-            weiboService.addKeyword(starId, keyword);
-            return ResponseEntity.ok("添加成功");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("添加失败");
-        }
+    public ResponseEntity<String> addKeyword(@RequestParam Integer starId, @RequestParam String keyword, HttpSession session) {
+        Integer userId = (Integer) session.getAttribute("userId");
+        if (userId == null) return ResponseEntity.status(401).body("请先登录");
+        weiboService.addKeyword(starId, keyword, userId);
+        return ResponseEntity.ok("添加成功");
     }
 
-    // 新增：删除关键词
-    // 对应前端：fetch(`/api/weibo/star/keyword?starId=${starId}&keyword=${...}`, { method: 'DELETE' })
     @DeleteMapping("/star/keyword")
-    public ResponseEntity<String> removeKeyword(@RequestParam Integer starId, @RequestParam String keyword) {
-        try {
-            weiboService.removeKeyword(starId, keyword);
-            return ResponseEntity.ok("删除成功");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("删除失败");
-        }
+    public ResponseEntity<String> removeKeyword(@RequestParam Integer starId, @RequestParam String keyword, HttpSession session) {
+        Integer userId = (Integer) session.getAttribute("userId");
+        if (userId == null) return ResponseEntity.status(401).body("请先登录");
+        weiboService.removeKeyword(starId, keyword, userId);
+        return ResponseEntity.ok("删除成功");
     }
 
     @PostMapping("/star/updateColor")
-    public ResponseEntity<String> updateColor(@RequestParam Integer id, @RequestParam String color) {
-        try {
-            weiboService.updateColor(id, color);
-            return ResponseEntity.ok("颜色已永久保存");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("保存失败");
-        }
+    public ResponseEntity<String> updateColor(@RequestParam Integer id, @RequestParam String color, HttpSession session) {
+        Integer userId = (Integer) session.getAttribute("userId");
+        if (userId == null) return ResponseEntity.status(401).body("请先登录");
+        weiboService.updateColor(id, color, userId);
+        return ResponseEntity.ok("颜色已保存");
     }
-
 }

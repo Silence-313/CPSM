@@ -3,7 +3,7 @@ package com.example.demo.service.impl;
 import com.alibaba.fastjson2.JSON;
 import com.example.demo.dto.HotSearchItem;
 import com.example.demo.entity.MonitorStar;
-import com.example.demo.repository.MonitorStarMapper;
+import com.example.demo.mapper.MonitorStarMapper;
 import com.example.demo.service.WeiboService;
 import com.example.demo.utils.HttpUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,26 +25,41 @@ public class WeiboServiceImpl implements WeiboService {
     @Autowired
     private MonitorStarMapper starMapper;
 
-    // 核心看板数据（包含热搜分析）
+    /**
+     * 获取当前用户的监测看板（包含热搜命中统计）
+     */
     @Override
     public List<MonitorStar> getMonitorDetail(Integer userId) {
-        // 1. 获取基础名单（已包含去重聚合后的 keywords 列表）
+        // 1. 获取该用户所有监测名人及其关键词
         List<MonitorStar> stars = getAllStarsWithKeywords(userId);
+        if (stars.isEmpty()) {
+            return stars;
+        }
 
-        // 2. 获取当前热搜
+        // 2. 获取微博热搜原始数据
         String rawJson = httpUtils.getWeiboHotSearchJson();
-        if (rawJson == null) return stars;
+        if (rawJson == null) {
+            return stars;
+        }
 
-        List<HotSearchItem> hotItems = JSON.parseObject(rawJson)
-                .getJSONObject("data").getList("realtime", HotSearchItem.class);
+        List<HotSearchItem> hotItems;
+        try {
+            hotItems = JSON.parseObject(rawJson)
+                    .getJSONObject("data")
+                    .getList("realtime", HotSearchItem.class);
+        } catch (Exception e) {
+            return stars;
+        }
 
-        // 3. 统计逻辑：确保一条热搜只被计票一次
+        if (hotItems == null) {
+            return stars;
+        }
+
+        // 3. 计算每个名人在热搜中的命中次数及热度总和
         for (MonitorStar star : stars) {
-            // 关键：筛选出所有命中的热搜项（名字或关键词命中其一即可）
             List<HotSearchItem> matches = hotItems.stream()
                     .filter(item -> {
                         String title = item.getWord();
-                        // 只要名字匹配 或者 关键词列表里的任何一个匹配
                         boolean nameMatch = star.getName() != null && title.contains(star.getName());
                         boolean kwMatch = star.getKeywords() != null &&
                                 star.getKeywords().stream().anyMatch(title::contains);
@@ -52,32 +67,38 @@ public class WeiboServiceImpl implements WeiboService {
                     })
                     .collect(Collectors.toList());
 
-            // 4. 统一赋值，确保数据源唯一
-            star.setOnBoardCount(matches.size()); // 命中几条
-            star.setTotalHot(matches.stream().mapToLong(HotSearchItem::getNum).sum()); // 累加热度
+            star.setOnBoardCount(matches.size());
+            star.setTotalHot(matches.stream().mapToLong(HotSearchItem::getNum).sum());
         }
         return stars;
     }
 
+    /**
+     * 获取分析后的热搜榜单（用于首页展示）
+     */
     @Override
     public List<HotSearchItem> getAnalyzedHotSearch(Integer userId) {
-        // 1. 健壮获取名人列表
         List<MonitorStar> stars = new ArrayList<>();
         if (userId != null) {
             stars = getAllStarsWithKeywords(userId);
         }
 
-        // 2. 获取微博原始 JSON
         String rawJson = httpUtils.getWeiboHotSearchJson();
-        if (rawJson == null) return new ArrayList<>();
+        if (rawJson == null) {
+            return new ArrayList<>();
+        }
 
-        // 3. 解析并标记
-        List<HotSearchItem> hotItems = JSON.parseObject(rawJson)
-                .getJSONObject("data").getList("realtime", HotSearchItem.class);
+        List<HotSearchItem> hotItems;
+        try {
+            hotItems = JSON.parseObject(rawJson)
+                    .getJSONObject("data")
+                    .getList("realtime", HotSearchItem.class);
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
 
         List<MonitorStar> finalStars = stars;
         return hotItems.stream().peek(item -> {
-            // 如果没有添加任何名人，则 highlighted 全部为 false，但不影响显示榜单
             boolean isMatch = finalStars.stream()
                     .flatMap(s -> s.getKeywords() != null ? s.getKeywords().stream() : java.util.stream.Stream.empty())
                     .anyMatch(kw -> item.getWord().contains(kw));
@@ -85,66 +106,82 @@ public class WeiboServiceImpl implements WeiboService {
         }).collect(Collectors.toList());
     }
 
-    // 解决 Mapper 多行数据合并的逻辑
-    private List<MonitorStar> getAllStarsWithKeywords(Integer userId) {
-        // 1. 从数据库拿到带重复名人的原始列表 (JOIN 产生的结果)
-        List<MonitorStar> rawList = starMapper.findAllWithKeywords(userId);
-
-        // 2. 核心：按 ID 进行分组聚合
-        Map<Integer, List<MonitorStar>> grouped = rawList.stream()
-                .collect(Collectors.groupingBy(MonitorStar::getId));
-
-        return grouped.values().stream().map(list -> {
-            MonitorStar base = list.get(0); // 取出其中一个作为主体
-            // 把同一个 ID 下所有的 keyword 收集成一个 List<String>
-            List<String> kws = list.stream()
-                    .map(MonitorStar::getKeyword)
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .collect(Collectors.toList());
-            base.setKeywords(kws); // 填入你实体类中的 keywords 字段
-            return base;
-        }).collect(Collectors.toList());
-    }
-
+    /**
+     * 添加监测名人
+     */
     @Override
     @Transactional
     public void addStarWithUser(String name, String color, Integer userId) {
         MonitorStar star = new MonitorStar();
         star.setName(name);
         star.setColor(color);
-        star.setUserId(userId); // 确保 MonitorStar 实体类里有这个字段
-
+        star.setUserId(userId);
         starMapper.insertStar(star);
+
+        // 自动将名人姓名作为默认关键词
         if (star.getId() != null) {
-            starMapper.insertKeyword(star.getId(), name);
+            starMapper.insertKeyword(star.getId(), name, userId);
         }
     }
 
+    /**
+     * 添加颗粒度关键词
+     */
     @Override
     @Transactional
-    public void addKeyword(Integer starId, String keyword) {
-        // 插入颗粒度关键词到 monitor_keywords 表
-        starMapper.insertKeyword(starId, keyword);
+    public void addKeyword(Integer starId, String keyword, Integer userId) {
+        starMapper.insertKeyword(starId, keyword, userId);
     }
 
+    /**
+     * 删除关键词
+     */
     @Override
     @Transactional
-    public void removeKeyword(Integer starId, String keyword) {
-        // 从 monitor_keywords 表删除指定关键词
-        starMapper.deleteKeyword(starId, keyword);
+    public void removeKeyword(Integer starId, String keyword, Integer userId) {
+        starMapper.deleteKeyword(starId, keyword, userId);
     }
 
+    /**
+     * 更新名人颜色标记
+     */
     @Override
     @Transactional
-    public void updateColor(Integer id, String color) {
-        // 确保调用 mapper 更新数据库
-        starMapper.updateStarColor(id, color);
+    public void updateColor(Integer id, String color, Integer userId) {
+        starMapper.updateStarColor(id, color, userId);
     }
 
+    /**
+     * 获取指定用户的监测名人详情（纯数据库查询，不含热搜统计）
+     */
     @Override
     public List<MonitorStar> getMonitorDetailByUser(Integer userId) {
-        // 这里需要调用 Mapper 中带 userId 过滤的查询方法
-        return starMapper.findAllByUserId(userId);
+        return getAllStarsWithKeywords(userId);
+    }
+
+    // ========== 私有辅助方法 ==========
+
+    /**
+     * 从数据库获取用户的所有名人及其关键词（聚合去重）
+     */
+    private List<MonitorStar> getAllStarsWithKeywords(Integer userId) {
+        List<MonitorStar> rawList = starMapper.findAllWithKeywords(userId);
+        if (rawList == null || rawList.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<Integer, List<MonitorStar>> grouped = rawList.stream()
+                .collect(Collectors.groupingBy(MonitorStar::getId));
+
+        return grouped.values().stream().map(list -> {
+            MonitorStar base = list.get(0);
+            List<String> kws = list.stream()
+                    .map(MonitorStar::getKeyword)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toList());
+            base.setKeywords(kws);
+            return base;
+        }).collect(Collectors.toList());
     }
 }

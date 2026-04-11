@@ -1,0 +1,2 @@
+ALTER TABLE weibo_comments
+ADD COLUMN weibo_title VARCHAR(200) DEFAULT NULL COMMENT '微博标题';
