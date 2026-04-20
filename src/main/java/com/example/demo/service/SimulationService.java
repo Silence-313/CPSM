@@ -101,10 +101,29 @@ public class SimulationService {
             }
             ResponseEntity<String> resp = restTemplate.postForEntity(url, entity, String.class);
             JsonNode root = objectMapper.readTree(resp.getBody());
-            return root.path("choices").get(0).path("message").path("content").asText();
+            String rawContent = root.path("choices").get(0).path("message").path("content").asText();
+            return cleanContent(rawContent);   // <-- 关键：清理多余换行
         } catch (Exception e) {
             return String.format("[%s] 调用失败: %s", model.getName(), e.getMessage());
         }
+    }
+
+    /**
+     * 清理模型返回内容，去除多余连续换行
+     */
+    private String cleanContent(String raw) {
+        if (raw == null) return "";
+        // 统一所有换行符为 \n
+        String unified = raw.replaceAll("\\r\\n|\\r", "\n");
+        // 将连续2个以上的换行符压缩为最多2个（保留一个空行）
+        String compressed = unified.replaceAll("\\n{2,}", "\n\n");
+        // 去除每行首尾空格，并去除整个字符串首尾空白
+        String[] lines = compressed.split("\n");
+        StringBuilder sb = new StringBuilder();
+        for (String line : lines) {
+            sb.append(line.trim()).append("\n");
+        }
+        return sb.toString().trim();
     }
 
     private String callJudge(String prompt) {
@@ -118,19 +137,53 @@ public class SimulationService {
     }
 
     private String buildForecasterPrompt(String event) {
-        return "你是一名资深舆情分析专家。现有一个模拟事件：" + event +
-                "。请从'粉丝反应'、'商业价值影响'、'法律风险'三个维度预演未来48小时的走势，字数不超过300字。";
+        return "### 身份定位\n" +
+                "你是一位拥有15年经验的微博资深舆情分析专家，擅长从微小信号中捕捉群体心理趋势。\n\n" +
+                "### 模拟事件\n" +
+                "事件内容：[" + event + "]\n\n" +
+                "### 预演任务\n" +
+                "请针对未来48小时，进行一次深度沙盘推演：\n" +
+                "1. **粉丝反应（心智博弈）**：分析核心粉丝、黑粉、路人三方的博弈点，是否会出现反转或洗白？\n" +
+                "2. **商业价值（损益评估）**：预测代言合作方的可能动作（观望/切割/背书）及其品牌连锁反应。\n" +
+                "3. **法律/监管风险**：研判是否触及平台红线或法律法规，是否会引来官媒定调。\n\n" +
+                "### 输出要求\n" +
+                "- **逻辑推导**：请使用‘因为...所以...可能导致...’的链式表达。\n" +
+                "- **字数限制**：300字以内，语言风格需专业、冷峻、穿透本质。\n" +
+                "- **排版**：段落间最多保留一个空行，严禁出现[br]等HTML标签。";
     }
 
     private String buildJudgePrompt(String event, String predictions) {
-        return "你现在是首席舆情合伙人。针对事件：「" + event + "」，以下三位专家给出了预演报告：\n" +
-                predictions + "\n请对比它们的异同，指出潜在最可能发生的逻辑，并给出一个最终的'风险定级'（高/中/低）和'应对策略建议'。";
+        int expertCount = config.getModels().size();
+        return "### 首席舆情合伙人指令\n" +
+                "当前针对事件「" + event + "」，你收到了来自" + expertCount + "个不同视角的专家预演报告：\n" +
+                "---报告汇总---\n" +
+                predictions + "\n" +
+                "--------------\n\n" +
+                "### 裁决任务\n" +
+                "请你履行合伙人职责，完成以下深度复盘：\n" +
+                "1. **异同分析**：快速提炼专家们的共识点，并尖锐地指出他们之间存在的推论冲突。\n" +
+                "2. **逻辑定音**：基于微博生态特性（如热搜算法、情绪传染性），判断哪一种演变逻辑最接近真实，并说明理由。\n" +
+                "3. **风险定级**：从【高/中/低】中选其一。注意：若涉及社会底线或官媒关注，必须定为“高”。\n" +
+                "4. **应对策略（Action Plan）**：给出三条极具操作性的建议（例如：冷处理、引导话题、法务介入的时间点）。\n\n" +
+                "### 强制格式（必须遵守）\n" +
+                "**风险定级**：[在此处仅填写 高/中/低]\n" +
+                "**逻辑裁决**：[简述理由]\n" +
+                "**应对建议**：[1. / 2. / 3.]\n" +
+                "注意：紧凑排版，段落间空行控制在1个以内。";
     }
 
     private String extractRiskLevel(String verdict) {
-        if (verdict.contains("高风险") || verdict.contains("风险：高")) return "HIGH";
-        if (verdict.contains("中风险") || verdict.contains("风险：中")) return "MEDIUM";
-        if (verdict.contains("低风险") || verdict.contains("风险：低")) return "LOW";
+        String lower = verdict.toLowerCase();
+        if (lower.contains("高风险") || lower.contains("风险：高") || lower.contains("风险定级：高")) {
+            return "HIGH";
+        }
+        if (lower.contains("中高风险") || lower.contains("中风险") ||
+                lower.contains("风险：中") || lower.contains("风险定级：中")) {
+            return "MEDIUM";
+        }
+        if (lower.contains("低风险") || lower.contains("风险：低") || lower.contains("风险定级：低")) {
+            return "LOW";
+        }
         return "UNKNOWN";
     }
 

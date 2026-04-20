@@ -1,0 +1,56 @@
+:root {
+    --primary: #ff8200;
+    --bg: #f4f7f9;
+}
+body {
+    margin: 0;
+    font-family: "Microsoft YaHei", sans-serif;
+    background-color: var(--bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+.portal-container {
+    width: 100%;
+    max-width: 800px;
+    text-align: center;
+    padding: 20px;
+}
+.welcome-section { margin-bottom: 40px; }
+.welcome-section h1 { color: #333; font-size: 2rem; }
+
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 25px;
+    margin-top: 20px;
+}
+.menu-card {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 2px solid transparent;
+}
+.menu-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--primary);
+    box-shadow: 0 8px 25px rgba(255,130,0,0.15);
+}
+.icon { font-size: 40px; margin-bottom: 15px; display: block; }
+.menu-card h3 { margin: 10px 0; color: #333; }
+.menu-card p { color: #888; font-size: 14px; }
+
+.logout-btn {
+    margin-top: 40px;
+    padding: 10px 20px;
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    color: #999;
+    cursor: pointer;
+}
+.logout-btn:hover { color: #666; border-color: #999; }

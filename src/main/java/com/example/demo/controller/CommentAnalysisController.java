@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.common.WeiboIdParser;
 import com.example.demo.dto.AnalysisRequest;
 import com.example.demo.service.CommentAnalysisService;
+import com.example.demo.utils.SentimentAnalyzer;
 import com.example.demo.vo.AnalysisHistoryDetailVO;
 import com.example.demo.vo.AnalysisHistoryVO;
 import com.example.demo.vo.AnalysisResultVO;
@@ -21,6 +22,9 @@ public class CommentAnalysisController {
 
     @Autowired
     private CommentAnalysisService analysisService;
+
+    @Autowired
+    private SentimentAnalyzer sentimentAnalyzer;
 
     /**
      * 发起微博分析任务
@@ -139,4 +143,12 @@ public class CommentAnalysisController {
         analysisService.deleteAllHistory(userId);
         return ResponseEntity.ok("清空成功");
     }
+
+    @PostMapping("/sentiment/score")
+    public Map<String, Object> getSentimentScore(@RequestBody Map<String, String> payload) {
+        String text = payload.get("text");
+        double score = sentimentAnalyzer.analyzeScore(text);
+        return Map.of("score", score);
+    }
+
 }

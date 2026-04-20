@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>蝴蝶效应·传播溯源</title>
+  <link rel="stylesheet" href="css/common.css">
+  <link rel="stylesheet" href="css/trace.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body>
+<div id="app" class="container">
+  <div class="nav-actions">
+    <a href="portal.html" class="nav-btn btn-back">🏠 返回功能中枢</a>
+  </div>
+
+  <h1>🦋 蝴蝶效应·传播溯源图</h1>
+  <div class="input-area">
+    <input type="text" v-model="inputMid" placeholder="输入微博ID或链接">
+    <button class="btn btn-primary" @click="startTrace" :disabled="loading">
+      {{ loading ? '抓取中...' : '开始溯源' }}
+    </button>
+    <button class="btn" @click="mockData" v-if="!graphData">使用模拟数据预览</button>
+  </div>
+
+  <div v-if="graphData" class="graph-container">
+    <div id="traceChart" style="width:100%; height:600px;"></div>
+    <div class="timeline-slider">
+      <span>时间轴:</span>
+      <input type="range" min="0" :max="timeSteps.length-1" v-model="currentStep" @input="updateByTime">
+    </div>
+    <div v-if="selectedNode" class="node-ai-panel">
+      <h4>🔍 AI溯源分析 - {{ selectedNode.name }}</h4>
+      <p>{{ aiAnalysis }}</p>
+    </div>
+  </div>
+</div>
+<script src="
+js/trace.js"></script>
+</body>
+</html>

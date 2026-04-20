@@ -1,0 +1,314 @@
+:root {
+    --primary: #ff8200;
+    --success: #52c41a;
+    --warning: #faad14;
+    --danger: #f5222d;
+    --bg: #f4f7f9;
+}
+body { margin: 0; font-family: "Microsoft YaHei", sans-serif; background: var(--bg); }
+
+.analysis-container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+
+.header-card {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    margin-bottom: 25px;
+    text-align: center;
+}
+.input-group {
+    display: flex;
+    gap: 10px;
+    max-width: 600px;
+    margin: 20px auto 0;
+}
+input[type="text"] {
+    flex: 1;
+    padding: 12px 20px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+input[type="text"]:focus { border-color: var(--primary); }
+
+.analyze-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0 25px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.analyze-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+.result-grid.active { opacity: 1; }
+
+.chart-card {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    min-height: 400px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+.full-width { grid-column: 1 / -1; }
+
+.back-btn {
+    margin-bottom: 20px;
+    cursor: pointer;
+    color: #666;
+    display: inline-block;
+}
+
+/* 筛选按钮组 */
+.filter-buttons {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.filter-btn {
+    padding: 8px 20px;
+    border: 1px solid #ddd;
+    border-radius: 30px;
+    background: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    color: #666;
+}
+.filter-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.filter-btn .count {
+    margin-left: 6px;
+    font-weight: normal;
+    opacity: 0.8;
+}
+
+/* 评论列表 */
+.comment-list {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background: #fafafa;
+}
+.comment-item {
+    padding: 14px 18px;
+    border-bottom: 1px solid #eee;
+    background: white;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+.comment-item:last-child {
+    border-bottom: none;
+}
+.comment-content {
+    flex: 1;
+    color: #333;
+    line-height: 1.5;
+    word-break: break-word;
+}
+.sentiment-tag {
+    min-width: 52px;
+    text-align: center;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    background: #f0f0f0;
+    color: #666;
+}
+.sentiment-positive { background: #f6ffed; color: var(--success); border: 1px solid #b7eb8f; }
+.sentiment-neutral { background: #fffbe6; color: var(--warning); border: 1px solid #ffe58f; }
+.sentiment-negative { background: #fff2f0; color: var(--danger); border: 1px solid #ffccc7; }
+
+.empty-tip {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+.help-btn {
+    background: #f0f0f0;
+    color: #666;
+    border: 1px solid #ddd;
+    padding: 0 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: normal;
+    white-space: nowrap;
+}
+.help-btn:hover {
+    background: #e0e0e0;
+}
+
+.history-panel {
+    position: fixed;
+    right: 20px;
+    top: 100px;
+    width: 280px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    padding: 20px;
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+    z-index: 100;
+}
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.history-header h4 {
+    margin: 0;
+    color: #333;
+}
+.history-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.history-item {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+.history-item:hover {
+    background: #f5f5f5;
+}
+.history-item span:hover {
+    color: #f5222d !important;
+}
+.history-mid {
+    font-weight: bold;
+    color: #333;
+    font-size: 14px;
+    margin-bottom: 5px;
+    word-break: break-all;
+}
+.history-time {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 8px;
+}
+.history-stats {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+}
+.stat-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 3px;
+}
+.stat-positive { background: var(--success); }
+.stat-neutral { background: var(--warning); }
+.stat-negative { background: var(--danger); }
+.history-toggle {
+    position: fixed;
+    right: 20px;
+    top: 60px;
+    z-index: 101;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 30px;
+    padding: 8px 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.history-panel.hidden {
+    display: none;
+}
+
+/* 新增导航样式（与 index.css 保持一致，但默认左对齐） */
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.nav-btn {
+    padding: 8px 18px;
+    font-size: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+    border: none;
+    background: transparent;
+}
+.btn-back {
+    background-color: #f0f2f5;
+    color: #666;
+    border: 1px solid #d9d9d9;
+}
+.btn-logout {
+    background-color: #fff;
+    color: #ff4d4f;
+    border: 1px solid #ff4d4f;
+}
+.btn-logout:hover {
+    background-color: #ff4d4f10;
+}
+
+/* 导航样式（与 index 一致，默认左对齐） */
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.nav-btn {
+    padding: 8px 18px;
+    font-size: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+    border: none;
+    background: transparent;
+}
+.btn-back {
+    background-color: #f0f2f5;
+    color: #666;
+    border: 1px solid #d9d9d9;
+}
+.btn-logout {
+    background-color: #fff;
+    color: #ff4d4f;
+    border: 1px solid #ff4d4f;
+}
+.btn-logout:hover {
+    background-color: #ff4d4f10;
+}

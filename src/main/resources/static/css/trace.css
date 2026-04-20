@@ -1,0 +1,26 @@
+.input-area {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+}
+.input-area input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+.graph-container {
+    margin-top: 20px;
+}
+.timeline-slider {
+    margin: 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.node-ai-panel {
+    background: #f5f7fa;
+    padding: 20px;
+    border-radius: 12px;
+    margin-top: 20px;
+}

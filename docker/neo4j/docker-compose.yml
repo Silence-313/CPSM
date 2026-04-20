@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  neo4j:
+    image: neo4j:5.12.0-community
+    container_name: cpms-neo4j
+    ports:
+      - "7474:7474"   # HTTP 浏览器界面
+      - "7687:7687"   # Bolt 协议
+    volumes:
+      - ./data:/data
+      - ./logs:/logs
+      - ./conf:/conf
+      - ./plugins:/plugins
+    environment:
+      - NEO4J_AUTH=neo4j/naonao050301   # 请修改密码
+      - NEO4J_PLUGINS=["apoc"]
