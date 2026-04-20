@@ -38,3 +38,5 @@ build/
 *.dic
 
 *.xlsx
+
+/docker
