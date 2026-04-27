@@ -1,0 +1,5 @@
+正确的评论请求事例
+请求方式：get
+请求URL：https://api.weibo.com/2/comments/show.json
+请求参数：id=5288619722146008&access_token=2.00Rwte8I8c2a9E8c35b1b90b0ZQiVz
+

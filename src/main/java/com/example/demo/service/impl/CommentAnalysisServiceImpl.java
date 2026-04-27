@@ -4,7 +4,7 @@ import com.example.demo.entity.WeiboComment;
 import com.example.demo.mapper.CommentMapper;
 import com.example.demo.service.CommentAnalysisService;
 import com.example.demo.service.ElasticsearchService;
-import com.example.demo.utils.HttpUtils;
+import com.example.demo.service.WeiboOpenApiService;
 import com.example.demo.utils.SentimentAnalyzer;
 import com.example.demo.vo.AnalysisHistoryDetailVO;
 import com.example.demo.vo.AnalysisHistoryVO;
@@ -12,9 +12,12 @@ import com.example.demo.vo.AnalysisResultVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -23,7 +26,7 @@ import java.util.stream.Collectors;
 public class CommentAnalysisServiceImpl implements CommentAnalysisService {
 
     @Autowired
-    private HttpUtils httpUtils;
+    private WeiboOpenApiService weiboOpenApiService;
 
     @Autowired
     private CommentMapper commentMapper;
@@ -33,6 +36,9 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
 
     @Autowired
     private ElasticsearchService elasticsearchService;
+
+    @Value("${weibo.python.path}")
+    private String pythonPath;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<String, Integer> progressMap = new ConcurrentHashMap<>();
@@ -49,43 +55,108 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
     @Override
     public AnalysisResultVO analyzeComments(String mid, Integer userId) {
         List<JsonNode> allComments = new ArrayList<>();
-        String currentMaxId = "0";
-        int currentMaxIdType = 0;
-        int totalPages = 0;
-        int maxPageLimit = 5;
+        int page = 1;
+        int maxPages = 50;
 
-        // 获取微博标题
         String weiboTitle = fetchWeiboTitle(mid);
 
+        // null = 尚未决定，Boolean.TRUE = 爬虫模式，Boolean.FALSE = 官方API模式
+        Boolean useSpider = null;
+
         try {
-            while (totalPages < maxPageLimit) {
-                String json = httpUtils.getWeiboCommentsJson(mid, currentMaxId, currentMaxIdType);
-                if (json == null) break;
+            while (page <= maxPages) {
+                JsonNode comments = null;
 
-                JsonNode root = objectMapper.readTree(json);
-                if (root.path("ok").asInt() != 1) break;
-
-                JsonNode data = root.path("data");
-                if (data.isArray() && data.size() > 0) {
-                    for (JsonNode node : data) {
-                        allComments.add(node);
+                // --- 第1页：优先尝试官方API ---
+                if (useSpider == null) {
+                    System.out.println("[评论分析] 尝试官方API获取评论 page=" + page + " mid=" + mid);
+                    try {
+                        JsonNode root = weiboOpenApiService.getComments(mid, 200, page);
+                        if (root != null) {
+                            comments = root.path("comments");
+                            if (comments.isArray() && comments.size() > 0) {
+                                System.out.println("[评论分析] 官方API成功，获取到 " + comments.size() + " 条评论");
+                                useSpider = false;
+                            }
+                        }
+                    } catch (Exception apiEx) {
+                        System.err.println("[评论分析] 官方API抛异常: " + apiEx.getMessage());
                     }
-                } else {
+
+                    // 官方API失败 → 降级到爬虫
+                    if (useSpider == null) {
+                        System.err.println("[评论分析] 官方API失败，降级到爬虫 page=" + page);
+                        useSpider = true;
+                        comments = null;
+                    }
+                }
+
+                // --- 官方API模式（page > 1 且官方API仍在工作） ---
+                if (Boolean.FALSE.equals(useSpider) && comments == null) {
+                    System.out.println("[评论分析] 官方API获取评论 page=" + page + " mid=" + mid);
+                    try {
+                        JsonNode root = weiboOpenApiService.getComments(mid, 200, page);
+                        if (root != null) {
+                            comments = root.path("comments");
+                        }
+                    } catch (Exception apiEx) {
+                        System.err.println("[评论分析] 官方API抛异常 page=" + page + ": " + apiEx.getMessage());
+                    }
+                    // 官方API后续页也失败了 → 降级到爬虫
+                    if (comments == null || !comments.isArray() || comments.size() == 0) {
+                        System.err.println("[评论分析] 官方API page=" + page + " 失败，降级到爬虫");
+                        useSpider = true;
+                        comments = null;
+                    }
+                }
+
+                // --- 爬虫模式 ---
+                if (Boolean.TRUE.equals(useSpider) && comments == null) {
+                    System.out.println("[评论分析] 爬虫获取评论 page=" + page + " mid=" + mid);
+                    JsonNode spiderResult = callContentSpider("comments", mid, page, 200);
+                    if (spiderResult == null) {
+                        System.err.println("[评论分析] 爬虫返回null，停止抓取");
+                        break;
+                    }
+                    if (!spiderResult.path("success").asBoolean(false)) {
+                        System.err.println("[评论分析] 爬虫返回错误: " + spiderResult.path("error").asText(""));
+                        break;
+                    }
+                    comments = spiderResult.path("data");
+                }
+
+                // --- 无数据则停止 ---
+                if (comments == null || !comments.isArray() || comments.size() == 0) {
+                    System.out.println("[评论分析] 无更多评论，停止 page=" + page);
                     break;
                 }
 
-                updateProgress(mid, ++totalPages);
-                currentMaxId = root.path("max_id").asText(null);
-                currentMaxIdType = root.path("max_id_type").asInt(0);
-                if (currentMaxId == null || currentMaxId.isEmpty() || "0".equals(currentMaxId)) break;
-                Thread.sleep(1000);
+                System.out.println("[评论分析] page=" + page + " 获取 " + comments.size() + " 条评论, source="
+                        + (Boolean.TRUE.equals(useSpider) ? "spider" : "official"));
+
+                for (JsonNode node : comments) {
+                    allComments.add(node);
+                }
+
+                updateProgress(mid, Math.min(95, page * 2));
+
+                // 本页不满200条说明已是最后一页
+                if (comments.size() < 200) break;
+
+                page++;
+                Thread.sleep(Boolean.TRUE.equals(useSpider) ? 1500 : 1000);
             }
 
-            if (allComments.isEmpty()) return new AnalysisResultVO(0, 0, 0, null, "未抓取到有效数据", null);
+            System.out.println("[评论分析] 抓取完成，共 " + allComments.size() + " 条评论, source="
+                    + (Boolean.TRUE.equals(useSpider) ? "spider" : (useSpider == null ? "unknown" : "official")));
+
+            if (allComments.isEmpty()) return new AnalysisResultVO(0, 0, 0, null, "未抓取到有效评论数据", null);
 
             return processAnalysis(allComments, mid, userId, weiboTitle);
 
         } catch (Exception e) {
+            System.err.println("[评论分析] 异常: " + e.getMessage());
+            e.printStackTrace();
             return new AnalysisResultVO(0, 0, 0, null, "分析失败: " + e.getMessage(), null);
         }
     }
@@ -97,7 +168,11 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
         int pos = 0, neu = 0, neg = 0;
 
         for (JsonNode node : allComments) {
+            // 兼容官方API(text)和爬虫(text_raw)两种字段名
             String content = node.path("text_raw").asText(null);
+            if (content == null || content.isEmpty()) {
+                content = node.path("text").asText(null);
+            }
             if (content == null || content.isEmpty()) continue;
 
             content = content.replaceAll("\\[[^\\]]+\\]", "").trim();
@@ -121,14 +196,19 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
 
             snippets.add(new AnalysisResultVO.CommentSnippet(content, score));
 
-            // 使用 Elasticsearch 分词
-            List<String> tokens = elasticsearchService.analyzeSingleTextAsList(content);
-            for (String token : tokens) {
-                wordCounts.put(token, wordCounts.getOrDefault(token, 0) + 1);
+            // 使用 Elasticsearch 分词（失败不影响评论入库）
+            try {
+                List<String> tokens = elasticsearchService.analyzeSingleTextAsList(content);
+                for (String token : tokens) {
+                    wordCounts.put(token, wordCounts.getOrDefault(token, 0) + 1);
+                }
+            } catch (Exception esEx) {
+                System.err.println("[评论分析] ES分词失败: " + esEx.getMessage());
             }
         }
 
         processComments(commentEntities);
+        System.out.println("[评论分析] processAnalysis 写入完成，commentEntities.size=" + commentEntities.size());
 
         List<Map<String, Object>> wordCloudData = wordCounts.entrySet().stream()
                 .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
@@ -145,9 +225,20 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
 
     @Override
     public void processComments(List<WeiboComment> comments) {
+        System.out.println("[评论分析] processComments 开始，共 " + comments.size() + " 条待写入");
+        int success = 0;
         for (WeiboComment comment : comments) {
-            commentMapper.insert(comment);
+            try {
+                commentMapper.insert(comment);
+                success++;
+            } catch (Exception e) {
+                System.err.println("[评论分析] 写入单条评论失败: mid=" + comment.getMid()
+                        + ", content=" + (comment.getContent() != null ? comment.getContent().substring(0, Math.min(30, comment.getContent().length())) : "null")
+                        + ", error=" + e.getMessage());
+                e.printStackTrace();
+            }
         }
+        System.out.println("[评论分析] processComments 完成，成功写入 " + success + "/" + comments.size() + " 条");
     }
 
     @Override
@@ -222,21 +313,86 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
         return detail;
     }
 
-    // 新增方法：获取微博标题
+    /**
+     * 获取微博标题：优先官方API，失败降级到爬虫
+     */
     private String fetchWeiboTitle(String mid) {
+        // 优先使用官方API
         try {
-            String url = "https://weibo.com/ajax/statuses/show?id=" + mid;
-            String json = httpUtils.executeRequest(url);
-            if (json != null) {
-                JsonNode root = objectMapper.readTree(json);
-                String text = root.path("text_raw").asText();
-                if (text.isEmpty()) text = root.path("text").asText();
-                return text.length() > 50 ? text.substring(0, 50) + "..." : text;
+            JsonNode status = weiboOpenApiService.getStatusById(mid);
+            if (status != null) {
+                String text = status.path("text").asText();
+                if (text != null && !text.isEmpty()) {
+                    return text.length() > 50 ? text.substring(0, 50) + "..." : text;
+                }
             }
         } catch (Exception e) {
-            System.err.println("获取微博标题失败: " + e.getMessage());
+            System.err.println("官方API获取标题失败，降级到爬虫: " + e.getMessage());
         }
-        return mid; // 失败时回退到 MID
+        // 降级到爬虫
+        try {
+            JsonNode result = callContentSpider("status", mid, 0);
+            if (result != null && result.path("success").asBoolean(false)) {
+                String text = result.path("text").asText();
+                if (text != null && !text.isEmpty()) {
+                    return text.length() > 50 ? text.substring(0, 50) + "..." : text;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("爬虫获取微博标题失败: " + e.getMessage());
+        }
+        return mid;
+    }
+
+    /**
+     * 调用 spider/weibo_content_spider.py 统一入口
+     * @param action  "status" 获取正文 / "comments" 获取评论
+     * @param mid     微博ID
+     * @param page    页码（status时传0表示不需要此参数）
+     * @param optionalCount 每页数量（仅comments需要）
+     */
+    private JsonNode callContentSpider(String action, String mid, int page, int... optionalCount) {
+        try {
+            String spiderPath = System.getProperty("user.dir") + "/spider/weibo_content_spider.py";
+
+            List<String> cmd = new ArrayList<>();
+            cmd.add(pythonPath);
+            cmd.add(spiderPath);
+            cmd.add(action);
+            cmd.add(mid);
+            if (page > 0) {
+                cmd.add(String.valueOf(page));
+                if (optionalCount.length > 0 && optionalCount[0] > 0) {
+                    cmd.add(String.valueOf(optionalCount[0]));
+                }
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+
+            StringBuilder output = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line);
+                }
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode != 0 || output.length() == 0) {
+                System.err.println("[评论分析] Python爬虫执行失败, exitCode=" + exitCode + ", cmd=" + String.join(" ", cmd));
+                if (output.length() > 0) {
+                    System.err.println("[评论分析] 爬虫输出: " + output);
+                }
+                return null;
+            }
+
+            return objectMapper.readTree(output.toString());
+        } catch (Exception e) {
+            System.err.println("调用内容爬虫失败: " + e.getMessage());
+            return null;
+        }
     }
 
     @Override

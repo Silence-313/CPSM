@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +38,6 @@ public class CommentAnalysisController {
         if (mid == null) {
             throw new IllegalArgumentException("无法识别的微博链接或 ID");
         }
-        refreshCookieSync();
         return analysisService.analyzeComments(mid, userId);
     }
 
@@ -59,14 +57,6 @@ public class CommentAnalysisController {
     public Map<String, Integer> getSentimentStats(@RequestParam String mid) {
         String realMid = WeiboIdParser.parseMid(mid);
         return analysisService.getSentimentDistribution(realMid != null ? realMid : mid);
-    }
-
-    /**
-     * 手动刷新 Cookie
-     */
-    @PostMapping("/refresh-cookie")
-    public String refreshCookie() {
-        return refreshCookieSync() ? "Cookie 刷新成功" : "Cookie 刷新失败";
     }
 
     /**
@@ -96,26 +86,6 @@ public class CommentAnalysisController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(detail);
-    }
-
-    // 同步刷新 Cookie 的私有方法
-    private boolean refreshCookieSync() {
-        try {
-            String pythonPath = "/opt/anaconda3/envs/weibo_spider/bin/python";
-            File scriptFile = new File("spider/cookie_helper.py");
-            if (!scriptFile.exists()) {
-                System.err.println("警告：Cookie 刷新脚本不存在，路径：" + scriptFile.getAbsolutePath());
-                return false;
-            }
-            ProcessBuilder pb = new ProcessBuilder(pythonPath, scriptFile.getAbsolutePath());
-            pb.inheritIO();
-            Process process = pb.start();
-            int exitCode = process.waitFor();
-            return exitCode == 0;
-        } catch (Exception e) {
-            System.err.println("刷新 Cookie 异常：" + e.getMessage());
-            return false;
-        }
     }
 
     /**

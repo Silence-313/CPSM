@@ -5,8 +5,6 @@ import com.example.demo.dto.StarVO;
 import com.example.demo.entity.MonitorStar;
 import com.example.demo.mapper.MonitorStarMapper;
 import com.example.demo.service.WeiboService;
-import com.example.demo.service.impl.WeiboServiceImpl;
-import com.example.demo.utils.HttpUtils;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,27 +20,10 @@ import java.util.stream.Collectors;
 public class HotSearchController {
 
     @Autowired
-    private HttpUtils httpUtils;
-
-    @Autowired
     private WeiboService weiboService;
 
     @Autowired
-    private WeiboServiceImpl weiboServiceimpl;
-
-    @Autowired
     private MonitorStarMapper starMapper;
-    /**
-     * 测试接口：直接返回微博 API 的原始 JSON 字符串
-     */
-    @GetMapping("/weibo-raw")
-    public String testWeiboApi() {
-        String json = httpUtils.getWeiboHotSearchJson();
-        if (json == null) {
-            return "{\"error\": \"无法访问微博 API，请检查网络或 Header 配置\"}";
-        }
-        return json;
-    }
 
     @GetMapping("/monitor")
     public List<HotSearchItem> monitor(HttpSession session) {
