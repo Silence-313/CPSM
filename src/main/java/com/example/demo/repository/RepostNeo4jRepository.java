@@ -9,7 +9,7 @@ import java.util.List;
 @Repository
 public interface RepostNeo4jRepository extends Neo4jRepository<PostNode, String> {
 
-    @Query("MATCH (p:Post {rootMid: $rootMid}) RETURN p")
+    @Query("MATCH (p:Post {rootMid: $rootMid}) OPTIONAL MATCH (p)-[r:REPOSTED_FROM]->(parent:Post) RETURN p, r, parent")
     List<PostNode> findAllNodesByRootMid(String rootMid);
 
     @Query("MATCH path = (root:Post {mid: $mid})<-[:REPOSTED_FROM*0..10]-(child:Post) RETURN nodes(path) AS nodes, relationships(path) AS rels")

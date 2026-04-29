@@ -7,13 +7,15 @@ Java 后端通过 subprocess 调用，读取 stdout 的 JSON 输出
 
 用法:
   python weibo_content_spider.py status <mid>          # 获取微博正文详情
-  python weibo_content_spider.py comments <mid> [page] [count]  # 获取评论列表（默认第1页，每页20条）
+  python weibo_content_spider.py comments <mid> [page] [count]  # 获取评论列表（默认第1页，每页100条）
+  python weibo_content_spider.py repostTimeline <mid> [page] [count]  # 获取转发列表（默认第1页，每页20条）
 """
 
 import json
 import time
 import sys
 import os
+import re
 import random
 import requests
 
@@ -156,9 +158,75 @@ def fetch_comments(mid, page=1, count=20):
         return {"success": False, "error": str(e)}
 
 
+def extract_mid(input_val):
+    """从 URL 或文本中提取微博 MID"""
+    if not input_val:
+        return input_val
+    url_match = re.search(r'weibo\.com/\d+/([a-zA-Z0-9]+)', input_val)
+    if url_match:
+        return url_match.group(1)
+    num_match = re.search(r'(\d{9,16})', input_val.strip())
+    if num_match:
+        return num_match.group(1)
+    return input_val.strip()
+
+
+def fetch_repost_timeline(mid, page=1, count=20):
+    """获取转发列表（通过 Ajax API）"""
+    url = f"https://weibo.com/ajax/statuses/repostTimeline"
+    params = {
+        "id": mid,
+        "page": page,
+        "count": count,
+    }
+    referer = f"https://weibo.com/{mid}"
+    headers = build_headers(referer)
+    time.sleep(random.uniform(1.0, 2.5))
+
+    try:
+        resp = session.get(url, headers=headers, params=params, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict):
+                if data.get('empty_tip') and '登录' in data['empty_tip']:
+                    return {"success": False, "error": f"Cookie 登录态失效: {data['empty_tip']}"}
+                reposts = data.get('data', [])
+                if reposts is None:
+                    reposts = []
+                items = []
+                for item in reposts:
+                    user = item.get('user', {})
+                    items.append({
+                        "id": str(item.get('id', '')),
+                        "text_raw": item.get('text_raw', '') or item.get('text', ''),
+                        "text": item.get('text', ''),
+                        "user": {
+                            "id": str(user.get('id', '')),
+                            "screen_name": user.get('screen_name', ''),
+                        },
+                        "reposts_count": item.get('reposts_count', 0),
+                        "comments_count": item.get('comments_count', 0),
+                        "attitudes_count": item.get('attitudes_count', 0),
+                        "created_at": item.get('created_at', ''),
+                    })
+                return {
+                    "success": True,
+                    "data": items,
+                    "count": len(items),
+                    "page": page,
+                    "total_number": data.get('total_number', 0),
+                }
+            else:
+                return {"success": False, "error": "响应不是JSON对象"}
+        else:
+            return {"success": False, "error": f"HTTP {resp.status_code}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def main():
     if len(sys.argv) < 2:
-        print(json.dumps({"success": False, "error": "缺少参数，用法: weibo_content_spider.py <status|comments> <mid> [page]"}, ensure_ascii=False))
+        print(json.dumps({"success": False, "error": "缺少参数，用法: weibo_content_spider.py <status|comments|repostTimeline> <mid> [page] [count]"}, ensure_ascii=False))
         sys.exit(1)
 
     if not os.path.exists(COOKIE_FILE):
@@ -171,7 +239,7 @@ def main():
         if len(sys.argv) < 3:
             print(json.dumps({"success": False, "error": "缺少 mid 参数"}, ensure_ascii=False))
             sys.exit(1)
-        mid = sys.argv[2]
+        mid = extract_mid(sys.argv[2])
         result = fetch_status(mid)
         print(json.dumps(result, ensure_ascii=False))
 
@@ -179,14 +247,24 @@ def main():
         if len(sys.argv) < 3:
             print(json.dumps({"success": False, "error": "缺少 mid 参数"}, ensure_ascii=False))
             sys.exit(1)
-        mid = sys.argv[2]
+        mid = extract_mid(sys.argv[2])
         page = int(sys.argv[3]) if len(sys.argv) > 3 else 1
         count = int(sys.argv[4]) if len(sys.argv) > 4 else 100
         result = fetch_comments(mid, page, count)
         print(json.dumps(result, ensure_ascii=False))
 
+    elif action == "repostTimeline":
+        if len(sys.argv) < 3:
+            print(json.dumps({"success": False, "error": "缺少 mid 参数"}, ensure_ascii=False))
+            sys.exit(1)
+        mid = extract_mid(sys.argv[2])
+        page = int(sys.argv[3]) if len(sys.argv) > 3 else 1
+        count = int(sys.argv[4]) if len(sys.argv) > 4 else 20
+        result = fetch_repost_timeline(mid, page, count)
+        print(json.dumps(result, ensure_ascii=False))
+
     else:
-        print(json.dumps({"success": False, "error": f"未知操作: {action}，支持: status, comments"}, ensure_ascii=False))
+        print(json.dumps({"success": False, "error": f"未知操作: {action}，支持: status, comments, repostTimeline"}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

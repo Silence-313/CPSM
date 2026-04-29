@@ -13,15 +13,31 @@ createApp({
         let pollTimer = null;
         const MAX_POLL = 30;
 
+        // 从 URL 或文本中提取纯 MID
+        const extractMid = (input) => {
+            if (!input) return '';
+            // 匹配 weibo.com/{uid}/{mid}?...
+            const urlMatch = input.match(/weibo\.com\/\d+\/([a-zA-Z0-9]+)/);
+            if (urlMatch) return urlMatch[1];
+            // 匹配纯数字 MID（9-16位）
+            const numMatch = input.match(/(\d{9,16})/);
+            if (numMatch) return numMatch[1];
+            // 已经是纯 MID
+            return input.trim();
+        };
+
         const startTrace = async () => {
-            if (!inputMid.value) return alert('请输入微博ID');
+            if (!inputMid.value) return alert('请输入微博ID或链接');
+            const mid = extractMid(inputMid.value);
+            if (!mid) return alert('无法识别微博ID，请输入正确的链接或ID');
+
             loading.value = true;
             graphData.value = null;
             if (pollTimer) clearInterval(pollTimer);
 
             try {
                 // 触发抓取
-                const buildRes = await fetch(`/api/trace/build?mid=${encodeURIComponent(inputMid.value)}`, { method: 'POST' });
+                const buildRes = await fetch(`/api/trace/build?mid=${encodeURIComponent(mid)}`, { method: 'POST' });
                 if (!buildRes.ok) {
                     alert('启动抓取失败');
                     loading.value = false;
@@ -29,7 +45,7 @@ createApp({
                 }
 
                 let pollCount = 0;
-                const MAX_POLL = 60; // 增加到 120 秒
+                const MAX_POLL = 60;
 
                 pollTimer = setInterval(async () => {
                     pollCount++;
@@ -42,7 +58,7 @@ createApp({
 
                     try {
                         // 先查询任务状态
-                        const statusRes = await fetch(`/api/trace/status/${inputMid.value}`);
+                        const statusRes = await fetch(`/api/trace/status/${mid}`);
                         const statusData = await statusRes.json();
                         const status = statusData.status;
 
@@ -55,7 +71,7 @@ createApp({
 
                         if (status === 'COMPLETED' || status === 'RUNNING') {
                             // 尝试获取树数据
-                            const treeRes = await fetch(`/api/trace/tree/${inputMid.value}`);
+                            const treeRes = await fetch(`/api/trace/tree/${mid}`);
                             if (treeRes.ok) {
                                 const data = await treeRes.json();
                                 if (data.nodes && data.nodes.length > 0) {
