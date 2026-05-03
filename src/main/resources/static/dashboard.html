@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系统健康态势感知大屏</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <link rel="stylesheet" href="css/theme.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+    /* Dashboard-specific variable mappings (defer to theme.css) */
+    :root {
+      --border-glow: rgba(0, 229, 255, 0.35);
+      --cyan: #00e5ff;
+      --purple: #a855f7;
+      --green: var(--success);
+      --amber: var(--warning);
+      --red: var(--danger);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg-primary);
+      background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(0, 229, 255, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(168, 85, 247, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
+      font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .dashboard {
+      position: relative;
+      z-index: 1;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 16px 20px;
+    }
+
+    /* ===== Header ===== */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      margin-bottom: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-glow);
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+      animation: pulse-icon 2s ease-in-out infinite;
+    }
+    @keyframes pulse-icon {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 229, 255, 0.3); }
+      50% { box-shadow: 0 0 35px rgba(0, 229, 255, 0.6); }
+    }
+    .header-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 3px;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .clock {
+      font-family: 'Orbitron', monospace;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+      letter-spacing: 2px;
+    }
+    .uptime-badge {
+      font-size: 12px;
+      color: var(--text-dim);
+      background: rgba(0, 229, 255, 0.08);
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(0, 229, 255, 0.2);
+    }
+    .btn-back {
+      padding: 8px 18px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.3s;
+    }
+    .btn-back:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.15);
+    }
+
+    /* ===== Grid Layout ===== */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 16px;
+    }
+
+    /* ===== Card ===== */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid rgba(0, 180, 255, 0.15);
+      border-radius: 8px;
+      padding: 18px 20px;
+      backdrop-filter: blur(10px);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: 0.5;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: 1px;
+    }
+    .card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+      animation: dot-blink 2s ease-in-out infinite;
+    }
+    @keyframes dot-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .card-dot.warn { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+    .card-dot.good { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+    /* ===== Stat Numbers ===== */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stat-item {
+      text-align: center;
+      padding: 12px 8px;
+      background: rgba(0, 229, 255, 0.03);
+      border-radius: 6px;
+      border: 1px solid rgba(0, 229, 255, 0.08);
+    }
+    .stat-value {
+      font-family: 'Orbitron', monospace;
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .stat-value.cyan { color: var(--cyan); text-shadow: 0 0 12px rgba(0,229,255,0.3); }
+    .stat-value.purple { color: var(--purple); text-shadow: 0 0 12px rgba(168,85,247,0.3); }
+    .stat-value.green { color: var(--green); text-shadow: 0 0 12px rgba(16,185,129,0.3); }
+    .stat-value.amber { color: var(--amber); text-shadow: 0 0 12px rgba(245,158,11,0.3); }
+    .stat-value.red { color: var(--red); text-shadow: 0 0 12px rgba(239,68,68,0.3); }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    /* Large single stat */
+    .hero-stat {
+      text-align: center;
+      padding: 8px 0;
+    }
+    .hero-value {
+      font-family: 'Orbitron', monospace;
+      font-size: 56px;
+      font-weight: 900;
+      background: linear-gradient(180deg, var(--cyan) 0%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.1;
+    }
+
+    /* Cookie TTL bar */
+    .ttl-bar-wrap {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .ttl-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 1s ease, background 0.5s;
+    }
+
+    /* DB status */
+    .db-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .db-name { font-size: 13px; color: var(--text-primary); }
+    .db-latency {
+      font-family: 'Orbitron', monospace;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .db-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .db-status.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .db-status.offline { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+    /* Chart containers */
+    .chart-box {
+      width: 100%;
+      height: 220px;
+    }
+    .chart-box.tall {
+      height: 280px;
+    }
+
+    /* ===== Bottom row full-width ===== */
+    .bottom-row {
+      grid-column: 1 / -1;
+    }
+    .chart-box.wide {
+      height: 260px;
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 1200px) {
+      .main-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 768px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+      .header {
+        flex-direction: column;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<div id="app" class="dashboard">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-icon">&#9889;</div>
+      <span class="header-title">系统健康态势感知大屏</span>
+    </div>
+    <div class="header-right">
+      <span class="uptime-badge">运行时长 {{ formatUptime(system.uptime) }}</span>
+      <span class="clock">{{ currentTime }}</span>
+      <button class="btn-back" onclick="window.location.href='portal.html'">← 返回控制台</button>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="main-grid">
+    <!-- Left col: JVM Gauge + CPU -->
+    <div class="card">
+      <div class="card-header"><span class="card-dot"></span>JVM 内存使用率 (Gauge)</div>
+      <div class="chart-box" id="chart-jvm-gauge"></div>
+    </div>
+
+    <!-- Middle col: Crawler Stats -->
+    <div class="card" style="grid-row: span 2;">
+      <div class="card-header"><span class="card-dot good"></span>爬虫态势感知</div>
+      <div class="hero-stat" style="margin-bottom: 16px;">
+        <div class="hero-value">{{ crawler.todayCrawlCount.toLocaleString() }}</div>
+        <div class="stat-label" style="margin-top: 4px; font-size: 14px;">今日爬取总次数</div>
+      </div>
+      <div style="margin: 16px 0;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); margin-bottom: 6px;">
+          <span>Cookie 剩余存活时间</span>
+          <span>{{ formatCookieTtl(crawler.cookieTtl) }}</span>
+        </div>
+        <div class="ttl-bar-wrap">
+          <div class="ttl-bar-fill" :style="cookieBarStyle"></div>
+        </div>
+      </div>
+      <div class="stat-grid" style="margin-top: 16px;">
+        <div class="stat-item">
+          <div class="stat-value red">{{ crawler.blockCount }}</div>
+          <div class="stat-label">拦截阻断次数</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value cyan">{{ apiInfo.qps }}</div>
+          <div class="stat-label">API 实时 QPS</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value purple">{{ system.cpuLoad }}%</div>
+          <div class="stat-label">CPU 使用率</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value amber">{{ system.jvmMemoryUsage }}%</div>
+          <div class="stat-label">堆内存占比</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right col: API Status Pie -->
+    <div class="card">
+      <div class="card-header"><span class="card-dot"></span>近1小时 HTTP 状态码分布</div>
+      <div class="chart-box" id="chart-api-pie"></div>
+    </div>
+
+    <!-- Left col bottom: DB Latency -->
+    <div class="card">
+      <div class="card-header"><span class="card-dot warn"></span>数据库连通性 &amp; 延迟</div>
+      <div class="db-row">
+        <span class="db-name">MySQL</span>
+        <span class="db-latency" :style="{ color: database.mysqlLatency < 5 ? 'var(--green)' : 'var(--amber)' }">{{ database.mysqlLatency }} ms</span>
+      </div>
+      <div class="db-row">
+        <span class="db-name">
+          <span class="db-status" :class="database.neo4jConnected ? 'online' : 'offline'"></span>
+          Neo4j
+        </span>
+        <span class="db-latency" :style="{ color: database.neo4jConnected ? 'var(--green)' : 'var(--red)' }">{{ database.neo4jConnected ? database.neo4jLatency + ' ms' : 'DISCONNECTED' }}</span>
+      </div>
+      <div class="chart-box" id="chart-db-bar" style="height: 160px; margin-top: 10px;"></div>
+    </div>
+
+    <!-- Right col bottom: CPU Line -->
+    <div class="card">
+      <div class="card-header"><span class="card-dot warn"></span>CPU 使用率趋势 (60s)</div>
+      <div class="chart-box" id="chart-cpu-line"></div>
+    </div>
+
+    <!-- Bottom row: QPS -->
+    <div class="card bottom-row">
+      <div class="card-header"><span class="card-dot good"></span>全站 QPS 实时滚动折线图（每 3 秒轮询）</div>
+      <div class="chart-box wide" id="chart-qps-line"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/theme.js"></script>
+<script>
+  const { createApp, ref, reactive, onMounted, onUnmounted, computed } = Vue;
+
+  createApp({
+    setup() {
+      // ===== State =====
+      const currentTime = ref('--:--:--');
+      const system = reactive({
+        jvmMemoryUsed: 0, jvmMemoryMax: 0, jvmMemoryUsage: 0, cpuLoad: 0, uptime: 0
+      });
+      const crawler = reactive({ cookieTtl: 0, todayCrawlCount: 0, blockCount: 0 });
+      const database = reactive({ mysqlLatency: 0, neo4jConnected: true, neo4jLatency: 0 });
+      const apiInfo = reactive({ qps: 0, statusDistribution: {} });
+      const history = reactive([]);
+
+      // ===== Charts =====
+      let chartJvmGauge, chartApiPie, chartDbBar, chartCpuLine, chartQpsLine;
+
+      // ===== Computed =====
+      const cookieBarStyle = computed(() => {
+        const pct = Math.min(100, (crawler.cookieTtl / (6 * 3600)) * 100);
+        let color = 'var(--green)';
+        if (pct < 30) color = 'var(--red)';
+        else if (pct < 60) color = 'var(--amber)';
+        return { width: pct + '%', background: color };
+      });
+
+      // ===== Methods =====
+      const formatUptime = (s) => {
+        const d = Math.floor(s / 86400);
+        const h = Math.floor((s % 86400) / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        return `${d}d ${h}h ${m}m`;
+      };
+      const formatCookieTtl = (s) => {
+        if (s <= 0) return '已过期';
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        return `${h}h ${m}m`;
+      };
+
+      // ===== Clock =====
+      let clockTimer;
+      const updateClock = () => {
+        const now = new Date();
+        currentTime.value = now.toLocaleString('zh-CN', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+        });
+      };
+
+      // ===== Init Charts =====
+      const initCharts = () => {
+        const darkText = '#94a3b8';
+        const darkAxis = 'rgba(255,255,255,0.1)';
+
+        // Gauge
+        chartJvmGauge = echarts.init(document.getElementById('chart-jvm-gauge'));
+        chartJvmGauge.setOption({
+          series: [{
+            type: 'gauge',
+            startAngle: 210, endAngle: -30,
+            center: ['50%', '55%'], radius: '85%',
+            min: 0, max: 100,
+            splitNumber: 10,
+            axisLine: {
+              show: true,
+              lineStyle: {
+                width: 18,
+                color: [[0.3, '#10b981'], [0.7, '#f59e0b'], [1, '#ef4444']]
+              }
+            },
+            pointer: { length: '60%', width: 5, itemStyle: { color: '#00e5ff' } },
+            axisTick: { distance: -18, length: 6, lineStyle: { width: 1, color: darkAxis } },
+            splitLine: { distance: -22, length: 14, lineStyle: { width: 2, color: darkAxis } },
+            axisLabel: { distance: 25, color: darkText, fontSize: 10, fontFamily: 'Orbitron' },
+            anchor: { show: true, size: 14, itemStyle: { borderColor: '#00e5ff', borderWidth: 2 } },
+            title: { offsetCenter: [0, '75%'], color: darkText, fontSize: 12 },
+            detail: {
+              valueAnimation: true,
+              fontSize: 28,
+              fontFamily: 'Orbitron',
+              fontWeight: 700,
+              offsetCenter: [0, '55%'],
+              formatter: '{value}%',
+              color: '#e2e8f0'
+            },
+            data: [{ value: 0, name: '堆内存' }]
+          }]
+        });
+
+        // Pie
+        chartApiPie = echarts.init(document.getElementById('chart-api-pie'));
+        chartApiPie.setOption({
+          tooltip: { trigger: 'item' },
+          legend: {
+            bottom: 0, textStyle: { color: darkText, fontSize: 11 },
+            data: ['200 OK', '4xx', '5xx']
+          },
+          series: [{
+            type: 'pie',
+            center: ['50%', '45%'],
+            radius: ['50%', '75%'],
+            avoidLabelOverlap: false,
+            itemStyle: { borderRadius: 4, borderColor: 'rgba(8,12,23,0.8)', borderWidth: 3 },
+            label: { show: false },
+            emphasis: {
+              label: { show: true, fontSize: 16, fontWeight: 'bold' },
+              scaleSize: 8
+            },
+            data: [
+              { value: 0, name: '200 OK', itemStyle: { color: '#10b981' } },
+              { value: 0, name: '4xx', itemStyle: { color: '#f59e0b' } },
+              { value: 0, name: '5xx', itemStyle: { color: '#ef4444' } }
+            ]
+          }]
+        });
+
+        // DB Bar
+        chartDbBar = echarts.init(document.getElementById('chart-db-bar'));
+        chartDbBar.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { left: 15, right: 15, top: 10, bottom: 20 },
+          xAxis: {
+            type: 'category', data: ['MySQL', 'Neo4j'],
+            axisLine: { lineStyle: { color: darkAxis } },
+            axisTick: { show: false },
+            axisLabel: { color: darkText, fontSize: 11 }
+          },
+          yAxis: {
+            type: 'value', name: 'ms',
+            axisLine: { show: false },
+            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+            axisLabel: { color: darkText, fontSize: 10, fontFamily: 'Orbitron' }
+          },
+          series: [{
+            type: 'bar',
+            barWidth: 40,
+            itemStyle: {
+              borderRadius: [4,4,0,0],
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: '#00e5ff' }, { offset: 1, color: 'rgba(0,229,255,0.15)' }
+              ])
+            },
+            data: [
+              { value: 0, itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#10b981'},{offset:1,color:'rgba(16,185,129,0.15)'}]) } },
+              { value: 0 }
+            ]
+          }]
+        });
+
+        // CPU Line
+        chartCpuLine = echarts.init(document.getElementById('chart-cpu-line'));
+        chartCpuLine.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { left: 15, right: 15, top: 10, bottom: 20 },
+          xAxis: {
+            type: 'category', data: [],
+            axisLine: { lineStyle: { color: darkAxis } },
+            axisTick: { show: false },
+            axisLabel: { show: false }
+          },
+          yAxis: {
+            type: 'value', name: '%', max: 100,
+            axisLine: { show: false },
+            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+            axisLabel: { color: darkText, fontSize: 10, fontFamily: 'Orbitron' }
+          },
+          series: [{
+            type: 'line', data: [],
+            smooth: true, symbol: 'none',
+            lineStyle: { color: '#a855f7', width: 2, shadowBlur: 8, shadowColor: 'rgba(168,85,247,0.4)' },
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(168,85,247,0.2)' }, { offset: 1, color: 'rgba(168,85,247,0.02)' }
+              ])
+            }
+          }]
+        });
+
+        // QPS Line
+        chartQpsLine = echarts.init(document.getElementById('chart-qps-line'));
+        chartQpsLine.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { left: 40, right: 20, top: 15, bottom: 25 },
+          xAxis: {
+            type: 'category', data: [],
+            axisLine: { lineStyle: { color: darkAxis } },
+            axisTick: { show: false },
+            axisLabel: { color: darkText, fontSize: 9, fontFamily: 'Orbitron', rotate: 45, interval: 9 }
+          },
+          yAxis: {
+            type: 'value', name: 'QPS',
+            axisLine: { show: false },
+            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+            axisLabel: { color: darkText, fontSize: 10, fontFamily: 'Orbitron' }
+          },
+          series: [{
+            type: 'line', data: [],
+            smooth: true, symbol: 'none',
+            lineStyle: { color: '#00e5ff', width: 2, shadowBlur: 10, shadowColor: 'rgba(0,229,255,0.5)' },
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(0,229,255,0.25)' }, { offset: 1, color: 'rgba(0,229,255,0.02)' }
+              ])
+            }
+          }]
+        });
+      };
+
+      // ===== Fetch Data =====
+      const fetchData = async () => {
+        try {
+          const res = await fetch('/api/monitor/dashboard-data');
+          const json = await res.json();
+
+          Object.assign(system, json.system);
+          Object.assign(crawler, json.crawler);
+          Object.assign(database, json.database);
+          Object.assign(apiInfo, json.apiInfo || json.api);
+          history.splice(0, history.length, ...(json.history || []));
+
+          updateCharts(json);
+        } catch (e) {
+          console.error('Dashboard fetch error:', e);
+        }
+      };
+
+      const updateCharts = (json) => {
+        // Gauge
+        if (chartJvmGauge) {
+          chartJvmGauge.setOption({
+            series: [{ data: [{ value: +(json.system.jvmMemoryUsage || 0).toFixed(1), name: '堆内存' }] }]
+          });
+        }
+
+        // Pie
+        if (chartApiPie && json.api) {
+          const sd = json.api.statusDistribution || json.apiInfo?.statusDistribution || {};
+          chartApiPie.setOption({
+            series: [{
+              data: [
+                { value: sd['200'] || 0, name: '200 OK' },
+                { value: sd['4xx'] || 0, name: '4xx' },
+                { value: sd['5xx'] || 0, name: '5xx' }
+              ]
+            }]
+          });
+        }
+
+        // DB Bar
+        if (chartDbBar && json.database) {
+          chartDbBar.setOption({
+            series: [{
+              data: [
+                { value: json.database.mysqlLatency || 0 },
+                { value: json.database.neo4jLatency || 0 }
+              ]
+            }]
+          });
+        }
+
+        // CPU Line
+        if (chartCpuLine && json.history) {
+          const times = json.history.map(p => p.time);
+          const cpus = json.history.map(p => p.cpu);
+          chartCpuLine.setOption({
+            xAxis: { data: times },
+            series: [{ data: cpus }]
+          });
+        }
+
+        // QPS Line
+        if (chartQpsLine && json.history) {
+          const times = json.history.map(p => p.time);
+          const qpss = json.history.map(p => p.qps);
+          chartQpsLine.setOption({
+            xAxis: { data: times },
+            series: [{ data: qpss }]
+          });
+        }
+      };
+
+      // ===== Resize =====
+      const handleResize = () => {
+        chartJvmGauge?.resize();
+        chartApiPie?.resize();
+        chartDbBar?.resize();
+        chartCpuLine?.resize();
+        chartQpsLine?.resize();
+      };
+
+      // ===== Lifecycle =====
+      let pollTimer;
+      onMounted(() => {
+        updateClock();
+        clockTimer = setInterval(updateClock, 1000);
+        initCharts();
+        // Register all charts for theme switching
+        var chartTokenBuilder = function(tokens) {
+          return {
+            backgroundColor: 'transparent',
+            textStyle: { color: tokens.chartText }
+          };
+        };
+        CPMSTheme.registerChart(chartJvmGauge, chartTokenBuilder);
+        CPMSTheme.registerChart(chartApiPie, chartTokenBuilder);
+        CPMSTheme.registerChart(chartDbBar, chartTokenBuilder);
+        CPMSTheme.registerChart(chartCpuLine, chartTokenBuilder);
+        CPMSTheme.registerChart(chartQpsLine, chartTokenBuilder);
+        // Listen for theme changes to update Vue reactive colors
+        window.addEventListener('theme-changed', function(e) {
+          // Theme variables like --green, --amber, --red are now from theme.css
+          // The cookieBarStyle computed already references these CSS vars
+        });
+        fetchData();
+        pollTimer = setInterval(fetchData, 3000);
+        window.addEventListener('resize', handleResize);
+      });
+
+      onUnmounted(() => {
+        clearInterval(clockTimer);
+        clearInterval(pollTimer);
+        window.removeEventListener('resize', handleResize);
+        chartJvmGauge?.dispose();
+        chartApiPie?.dispose();
+        chartDbBar?.dispose();
+        chartCpuLine?.dispose();
+        chartQpsLine?.dispose();
+      });
+
+      return {
+        currentTime, system, crawler, database, apiInfo,
+        cookieBarStyle, formatUptime, formatCookieTtl
+      };
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>

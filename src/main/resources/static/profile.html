@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人中心 - CPMS 指挥中心</title>
+  <link rel="stylesheet" href="css/theme.css">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    /* ===== Profile-specific styles ===== */
+
+    /* Grid background overlay */
+    .grid-bg {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+      background-size: 50px 50px;
+      pointer-events: none; z-index: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    /* Profile header */
+    .profile-header {
+      display: flex; align-items: center; gap: 24px;
+      padding: 28px 30px; margin-bottom: 22px;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      backdrop-filter: blur(10px);
+      transition: var(--theme-transition);
+    }
+    .avatar-wrap { position: relative; flex-shrink: 0; }
+    .avatar-img {
+      width: 72px; height: 72px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; color: white; font-weight: 700;
+      background: linear-gradient(135deg, #a855f7, var(--accent));
+      box-shadow: 0 0 24px rgba(168,85,247,0.3);
+      border: 2px solid var(--border-accent);
+    }
+    .avatar-dot {
+      position: absolute; bottom: 4px; right: 4px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--success); border: 2px solid var(--bg-card);
+      box-shadow: 0 0 8px var(--success);
+    }
+    .profile-info h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; color: var(--text-primary); }
+    .profile-info .uid {
+      font-size: 12px; color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+    }
+
+    /* Stat cards */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px; margin-bottom: 22px;
+    }
+    .stat-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px 22px; backdrop-filter: blur(10px);
+      position: relative; overflow: hidden;
+      transition: var(--theme-transition), transform 0.3s;
+    }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent)), transparent);
+      opacity: 0.5;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .stat-card-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+    }
+    .stat-card-icon { font-size: 22px; }
+    .stat-card-value {
+      font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 36px; font-weight: 700;
+      background: linear-gradient(180deg, var(--card-accent, var(--accent)), var(--text-primary));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      line-height: 1.1;
+    }
+    .stat-card-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+    /* Content grid */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 18px; margin-bottom: 22px;
+    }
+
+    /* Avatar selector */
+    .avatar-options {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;
+    }
+    .avatar-option {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; cursor: pointer; border: 2px solid transparent;
+      transition: all 0.3s; color: white; font-weight: 700;
+    }
+    .avatar-option:hover { transform: scale(1.1); }
+    .avatar-option.active { border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+
+    /* Charts */
+    .chart-box { width: 100%; height: 240px; }
+
+    /* Heatmap */
+    .heatmap-wrap { overflow-x: auto; }
+    .heatmap-grid { display: flex; gap: 3px; flex-wrap: wrap; }
+    .heatmap-cell {
+      width: 12px; height: 12px; border-radius: 2px;
+      transition: transform 0.2s;
+    }
+    .heatmap-cell:hover { transform: scale(2); z-index: 10; }
+    .heatmap-legend {
+      display: flex; align-items: center; gap: 6px; margin-top: 12px;
+      font-size: 11px; color: var(--text-dim); justify-content: flex-end;
+    }
+    .heatmap-legend .swatch {
+      width: 12px; height: 12px; border-radius: 2px; display: inline-block;
+    }
+
+    /* Activity feed */
+    .activity-list {
+      display: flex; flex-direction: column; gap: 0;
+      max-height: 600px; overflow-y: auto;
+    }
+    .activity-item {
+      display: flex; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--border-light);
+      transition: background 0.2s;
+    }
+    .activity-item:hover { background: var(--bg-hover); }
+    .activity-icon {
+      width: 34px; height: 34px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .activity-content { flex: 1; min-width: 0; }
+    .activity-action { font-size: 13px; line-height: 1.5; color: var(--text-primary); }
+    .activity-meta {
+      font-size: 11px; color: var(--text-muted); margin-top: 2px;
+      display: flex; gap: 10px;
+    }
+    .activity-badge {
+      font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .content-grid { grid-template-columns: 1fr 1fr; }
+      .stat-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .content-grid { grid-template-columns: 1fr; }
+      .stat-row { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<div id="app">
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <div class="nav-left">
+      <div class="nav-icon">&#9881;</div>
+      <div>
+        <div class="nav-title">个人中心 · 指挥控制台</div>
+        <div class="nav-subtitle">Profile Command Hub</div>
+      </div>
+    </div>
+    <button class="btn-back" onclick="window.location.href='portal.html'">&#8592; 返回控制台</button>
+  </div>
+
+  <!-- Main -->
+  <div class="main-container">
+    <!-- Profile Header + Avatar -->
+    <div class="profile-header">
+      <div class="avatar-wrap">
+        <div class="avatar-img" :style="{ background: currentAvatarBg }">{{ avatarInitial }}</div>
+        <div class="avatar-dot"></div>
+      </div>
+      <div class="profile-info">
+        <h2>{{ username }}</h2>
+        <span class="uid">ID: CPMS-{{ userId }} · 活跃状态: 在线</span>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stat-row">
+      <div class="stat-card" v-for="card in statCards" :key="card.label"
+        :style="{ '--card-accent': card.accent }">
+        <div class="stat-card-header">
+          <span class="stat-card-icon">{{ card.icon }}</span>
+        </div>
+        <div class="stat-card-value" :style="{ background: 'linear-gradient(180deg, ' + card.accent + ', var(--text-primary))', '-webkit-background-clip': 'text', '-webkit-text-fill-color': 'transparent' }">
+          {{ card.value }}
+        </div>
+        <div class="stat-card-label">{{ card.label }}</div>
+      </div>
+    </div>
+
+    <!-- Content Grid -->
+    <div class="content-grid">
+      <!-- Left: Account Settings + Appearance -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-dot" style="background: var(--accent)"></span> 账户管理
+        </div>
+        <div class="panel-body">
+          <!-- Username -->
+          <div class="form-group">
+            <label class="form-label">用户名</label>
+            <div class="flex-row">
+              <input class="form-input" v-model="editUsername" placeholder="输入新用户名" style="flex:1;">
+              <button class="btn-sm btn-primary" @click="updateUsername">保存</button>
+            </div>
+            <div v-if="usernameMsg" :class="['msg', usernameOk ? 'msg-success' : 'msg-error']">{{ usernameMsg }}</div>
+          </div>
+
+          <!-- Avatar -->
+          <div class="form-group">
+            <label class="form-label">头像选择</label>
+            <div class="avatar-options">
+              <div v-for="opt in avatarOptions" :key="opt.color"
+                :class="['avatar-option', { active: selectedAvatar === opt.color }]"
+                :style="{ background: opt.bg }"
+                @click="selectAvatar(opt.color)">
+                {{ opt.emoji }}
+              </div>
+            </div>
+            <button class="btn-sm btn-outline" @click="updateAvatar" style="margin-top:8px;">更新头像</button>
+            <div v-if="avatarMsg" :class="['msg', avatarOk ? 'msg-success' : 'msg-error']">{{ avatarMsg }}</div>
+          </div>
+
+          <!-- API Key -->
+          <div class="form-group">
+            <label class="form-label">SiliconFlow API Key</label>
+            <input class="form-input" v-model="apiKeyInput" placeholder="sk-xxxxxxxx" style="font-size:11px;">
+            <div style="margin-top:8px; display:flex; gap:8px;">
+              <button class="btn-sm btn-primary" @click="updateApiKey">更新密钥</button>
+              <button class="btn-sm btn-outline" @click="fetchApiKey">查看已保存</button>
+            </div>
+            <div v-if="apiKeyMsg" :class="['msg', apiKeyOk ? 'msg-success' : 'msg-error']">{{ apiKeyMsg }}</div>
+            <div v-if="savedApiKey" class="msg msg-success" style="margin-top:4px;">当前: {{ savedApiKey }}</div>
+          </div>
+        </div>
+
+        <!-- Appearance Settings -->
+        <div class="panel-header" style="border-top: 1px solid var(--border);">
+          <span class="panel-dot" style="background: #a855f7"></span> 外观设置
+        </div>
+        <div class="panel-body">
+          <label class="form-label">主题模式</label>
+          <div class="theme-toggle-group">
+            <button class="theme-toggle-btn" :class="{ active: currentTheme === 'dark' }" @click="switchTheme('dark')">
+              🌙 暗黑模式
+            </button>
+            <button class="theme-toggle-btn" :class="{ active: currentTheme === 'light' }" @click="switchTheme('light')">
+              ☀️ 明亮模式
+            </button>
+          </div>
+          <div style="font-size:11px; color: var(--text-dim); margin-top:8px;">
+            切换后全站生效，偏好会自动保存
+          </div>
+        </div>
+      </div>
+
+      <!-- Middle: Charts -->
+      <div>
+        <div class="panel" style="margin-bottom:18px;">
+          <div class="panel-header">
+            <span class="panel-dot" style="background: #a855f7"></span> 各模块使用频次
+          </div>
+          <div class="panel-body">
+            <div class="chart-box" id="chart-module-bar"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-dot" style="background: var(--success)"></span> 数据采集贡献热力图（近1年）
+          </div>
+          <div class="panel-body">
+            <div class="heatmap-wrap" v-if="heatmapData.length > 0">
+              <div class="heatmap-grid">
+                <div v-for="cell in heatmapData" :key="cell.date"
+                  class="heatmap-cell"
+                  :style="{ background: heatmapColor(cell.level) }"
+                  :title="cell.date + ': ' + cell.count + ' 次'">
+                </div>
+              </div>
+              <div class="heatmap-legend">
+                <span>少</span>
+                <span class="swatch" :style="{ background: heatmapEmptyBg }"></span>
+                <span class="swatch" style="background:rgba(16,185,129,0.3)"></span>
+                <span class="swatch" style="background:rgba(16,185,129,0.5)"></span>
+                <span class="swatch" style="background:rgba(16,185,129,0.7)"></span>
+                <span class="swatch" style="background:#10b981"></span>
+                <span>多</span>
+              </div>
+            </div>
+            <div v-else class="empty-state">
+              <div class="empty-icon">&#9783;</div>
+              <div style="font-size:13px;">加载热力图中...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Activity Feed -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-dot" style="background: var(--warning)"></span> 系统动态
+          <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">实时流</span>
+        </div>
+        <div class="panel-body" style="padding:0 18px;">
+          <div v-if="activities.length > 0" class="activity-list">
+            <div v-for="(act, i) in activities" :key="i" class="activity-item">
+              <div class="activity-icon" :style="{ background: act.color + '20', color: act.color }">
+                {{ act.icon }}
+              </div>
+              <div class="activity-content">
+                <div class="activity-action">{{ act.action }}</div>
+                <div class="activity-meta">
+                  <span class="activity-badge" :style="{ background: act.color + '20', color: act.color }">{{ act.module }}</span>
+                  <span>{{ act.time }}</span>
+                  <span v-if="act.riskLevel" :style="{ color: act.riskLevel === '高风险' ? 'var(--danger)' : 'var(--warning)' }">{{ act.riskLevel }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            <div class="empty-icon">&#128337;</div>
+            <div style="font-size:13px;">暂无活动记录</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/theme.js"></script>
+<script>
+  const { createApp, ref, reactive, computed, onMounted, onUnmounted } = Vue;
+
+  createApp({
+    setup() {
+      // Current theme (reactive)
+      const currentTheme = ref(CPMSTheme.current());
+
+      // Profile
+      const username = ref('用户');
+      const userId = ref('--');
+      const userAvatar = ref('');
+      const editUsername = ref('');
+      const selectedAvatar = ref('');
+      const usernameMsg = ref('');
+      const usernameOk = ref(false);
+      const avatarMsg = ref('');
+      const avatarOk = ref(false);
+      const apiKeyInput = ref('');
+      const apiKeyMsg = ref('');
+      const apiKeyOk = ref(false);
+      const savedApiKey = ref('');
+
+      // Stats
+      const statCards = reactive([
+        { label: '监测案例数', value: '--', icon: '📊', accent: '#3b82f6' },
+        { label: 'AI 预演次数', value: '--', icon: '🎲', accent: '#a855f7' },
+        { label: '关注明星数', value: '--', icon: '⭐', accent: '#f59e0b' },
+        { label: '系统运行天数', value: '--', icon: '📅', accent: '#10b981' },
+      ]);
+
+      // Activity
+      const activities = ref([]);
+      const heatmapData = ref([]);
+
+      // Avatars
+      const avatarOptions = [
+        { emoji: '🦊', bg: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: 'orange-red' },
+        { emoji: '🐼', bg: 'linear-gradient(135deg, #64748b, #1e293b)', color: 'mono' },
+        { emoji: '🦄', bg: 'linear-gradient(135deg, #a855f7, #ec4899)', color: 'purple-pink' },
+        { emoji: '🐲', bg: 'linear-gradient(135deg, #06b6d4, #10b981)', color: 'teal' },
+        { emoji: '🦉', bg: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: 'blue-purple' },
+        { emoji: '🌟', bg: 'linear-gradient(135deg, #f59e0b, #fbbf24)', color: 'gold' },
+      ];
+      const avatarBgMap = {
+        'orange-red': 'linear-gradient(135deg, #f59e0b, #ef4444)',
+        'mono': 'linear-gradient(135deg, #64748b, #1e293b)',
+        'purple-pink': 'linear-gradient(135deg, #a855f7, #ec4899)',
+        'teal': 'linear-gradient(135deg, #06b6d4, #10b981)',
+        'blue-purple': 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+        'gold': 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+      };
+
+      const currentAvatarBg = computed(() => avatarBgMap[userAvatar.value] || 'linear-gradient(135deg, #a855f7, #00e5ff)');
+      const avatarInitial = computed(() => username.value.charAt(0).toUpperCase());
+
+      // Heatmap empty background adapts to theme
+      const heatmapEmptyBg = computed(() => currentTheme.value === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)');
+
+      // Charts
+      let chartBar = null;
+
+      // ---- Theme switching ----
+      const switchTheme = (theme) => {
+        CPMSTheme.set(theme);
+        currentTheme.value = theme;
+      };
+
+      const onThemeChanged = (e) => {
+        currentTheme.value = e.detail.theme;
+      };
+
+      // Full chart options (used once for initial setup)
+      const buildChartOption = (tokens) => {
+        return {
+          tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+          grid: { left: 80, right: 30, top: 10, bottom: 20 },
+          backgroundColor: 'transparent',
+          textStyle: { color: tokens.chartText },
+          xAxis: {
+            type: 'value',
+            axisLine: { lineStyle: { color: tokens.chartAxis } },
+            splitLine: { lineStyle: { color: tokens.chartSplit } },
+            axisLabel: { color: tokens.chartText, fontSize: 10 }
+          },
+          yAxis: {
+            type: 'category', data: [],
+            axisLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: { color: tokens.chartText, fontSize: 12 }
+          },
+          series: [{
+            type: 'bar', barWidth: 20,
+            itemStyle: { borderRadius: [0, 4, 4, 0] },
+            label: { show: true, position: 'right', color: tokens.chartText, fontSize: 11 },
+            data: []
+          }]
+        };
+      };
+
+      // Theme-only patch (no data — keeps chart data intact on theme switch)
+      const buildChartThemePatch = (tokens) => {
+        return {
+          backgroundColor: 'transparent',
+          textStyle: { color: tokens.chartText },
+          xAxis: {
+            axisLine: { lineStyle: { color: tokens.chartAxis } },
+            splitLine: { lineStyle: { color: tokens.chartSplit } },
+            axisLabel: { color: tokens.chartText }
+          },
+          yAxis: {
+            axisLabel: { color: tokens.chartText }
+          },
+          series: [{
+            label: { color: tokens.chartText }
+          }]
+        };
+      };
+
+      // ---- Methods ----
+      const heatmapColor = (level) => {
+        const colors = currentTheme.value === 'dark'
+          ? ['rgba(255,255,255,0.04)', 'rgba(16,185,129,0.2)', 'rgba(16,185,129,0.4)', 'rgba(16,185,129,0.65)', '#10b981']
+          : ['rgba(0,0,0,0.03)', 'rgba(16,185,129,0.2)', 'rgba(16,185,129,0.45)', 'rgba(16,185,129,0.7)', '#059669'];
+        return colors[Math.min(level || 0, 4)];
+      };
+
+      const selectAvatar = (color) => { selectedAvatar.value = color; };
+
+      // ===== API Calls =====
+      const fetchUserInfo = async () => {
+        try {
+          const res = await fetch('/api/profile/info');
+          if (!res.ok) throw new Error('Not logged in');
+          const data = await res.json();
+          username.value = data.username || '用户';
+          editUsername.value = data.username || '';
+          userAvatar.value = data.avatar || '';
+          selectedAvatar.value = data.avatar || '';
+        } catch (e) { console.error('Fetch user info:', e); }
+      };
+
+      const fetchStats = async () => {
+        try {
+          const res = await fetch('/api/profile/stats');
+          const data = await res.json();
+          statCards[0].value = data.monitorCases ?? '--';
+          statCards[1].value = data.aiPredictions ?? '--';
+          statCards[2].value = data.monitoredStars ?? '--';
+          statCards[3].value = (data.uptimeDays ?? '--') + ' 天';
+        } catch (e) { console.error('Stats:', e); }
+      };
+
+      const fetchModuleUsage = async () => {
+        try {
+          const res = await fetch('/api/profile/module-usage');
+          const data = await res.json();
+          if (chartBar && data.modules) {
+            const names = data.modules.map(m => m.name);
+            const values = data.modules.map(m => m.value);
+            const colors = data.modules.map(m => m.color);
+            chartBar.setOption({
+              yAxis: { data: names.reverse() },
+              series: [{
+                data: values.reverse().map((v, i) => ({
+                  value: v,
+                  itemStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                      { offset: 0, color: colors.reverse()[i] },
+                      { offset: 1, color: 'transparent' }
+                    ])
+                  }
+                }))
+              }]
+            });
+          }
+        } catch (e) { console.error('Module usage:', e); }
+      };
+
+      const fetchHeatmap = async () => {
+        try {
+          const res = await fetch('/api/profile/heatmap');
+          const data = await res.json();
+          heatmapData.value = data.data || [];
+        } catch (e) { console.error('Heatmap:', e); }
+      };
+
+      const fetchActivity = async () => {
+        try {
+          const res = await fetch('/api/profile/activity?limit=30');
+          const data = await res.json();
+          activities.value = (data.activities || []).map(a => ({
+            ...a,
+            time: a.time ? a.time.replace('T', ' ').substring(0, 16) : ''
+          }));
+        } catch (e) { console.error('Activity:', e); }
+      };
+
+      const fetchApiKey = async () => {
+        try {
+          const res = await fetch('/api/profile/api-key');
+          const data = await res.json();
+          savedApiKey.value = data.apiKey || '未配置';
+        } catch (e) { console.error('API Key:', e); }
+      };
+
+      const updateUsername = async () => {
+        const val = editUsername.value.trim();
+        if (!val) { usernameMsg.value = '用户名不能为空'; usernameOk.value = false; return; }
+        try {
+          const res = await fetch('/api/profile/username', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: val })
+          });
+          const data = await res.json();
+          usernameMsg.value = data.message; usernameOk.value = data.success;
+          if (data.success) { username.value = val; localStorage.setItem('currentUser', val); }
+        } catch (e) { usernameMsg.value = '请求失败'; usernameOk.value = false; }
+      };
+
+      const updateAvatar = async () => {
+        if (!selectedAvatar.value) { avatarMsg.value = '请选择一个头像'; avatarOk.value = false; return; }
+        try {
+          const res = await fetch('/api/profile/avatar', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ avatar: selectedAvatar.value })
+          });
+          const data = await res.json();
+          avatarMsg.value = data.message; avatarOk.value = data.success;
+          if (data.success) userAvatar.value = selectedAvatar.value;
+        } catch (e) { avatarMsg.value = '请求失败'; avatarOk.value = false; }
+      };
+
+      const updateApiKey = async () => {
+        const val = apiKeyInput.value.trim();
+        if (!val) { apiKeyMsg.value = '请输入 API Key'; apiKeyOk.value = false; return; }
+        try {
+          const res = await fetch('/api/profile/api-key', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: val })
+          });
+          const data = await res.json();
+          apiKeyMsg.value = data.message; apiKeyOk.value = data.success;
+          if (data.success) { apiKeyInput.value = ''; fetchApiKey(); }
+        } catch (e) { apiKeyMsg.value = '请求失败'; apiKeyOk.value = false; }
+      };
+
+      // Init Chart
+      const initChart = () => {
+        const dom = document.getElementById('chart-module-bar');
+        if (!dom) return;
+        const tokens = CPMSTheme.chartTokens();
+        chartBar = echarts.init(dom);
+        chartBar.setOption(buildChartOption(tokens));
+        CPMSTheme.registerChart(chartBar, buildChartThemePatch);
+      };
+
+      onMounted(async () => {
+        window.addEventListener('theme-changed', onThemeChanged);
+        await fetchUserInfo();
+        initChart();
+        await Promise.all([fetchStats(), fetchModuleUsage(), fetchHeatmap(), fetchActivity(), fetchApiKey()]);
+        window.addEventListener('resize', () => chartBar?.resize());
+      });
+
+      onUnmounted(() => {
+        window.removeEventListener('theme-changed', onThemeChanged);
+        if (chartBar) CPMSTheme.unregisterChart(chartBar);
+      });
+
+      return {
+        currentTheme,
+        username, userId, userAvatar, editUsername, selectedAvatar,
+        usernameMsg, usernameOk, avatarMsg, avatarOk,
+        apiKeyInput, apiKeyMsg, apiKeyOk, savedApiKey,
+        statCards, activities, heatmapData, avatarOptions,
+        currentAvatarBg, avatarInitial, heatmapEmptyBg,
+        heatmapColor, selectAvatar, switchTheme,
+        updateUsername, updateAvatar, updateApiKey, fetchApiKey
+      };
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>

@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>舆情模拟攻防实验室</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <link rel="stylesheet" href="css/theme.css">
+  <style>
+    /* Map lab-specific variable names to theme.css variables */
+    :root {
+      --bg: var(--bg-primary);
+      --card-bg: var(--bg-secondary);
+      --text: var(--text-primary);
+      --primary: var(--accent);
+      --primary-light: rgba(56, 189, 248, 0.06);
+      --amber: var(--warning);
+      --red: var(--danger);
+      --purple: #7c3aed;
+      --shadow: var(--shadow-sm);
+      --shadow-lg: var(--shadow-md);
+    }
+    .light-theme {
+      --primary-light: rgba(37, 99, 235, 0.06);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ===== Top Nav ===== */
+    .top-nav {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: white;
+    }
+    .nav-title {
+      font-size: 17px; font-weight: 700; letter-spacing: 1px;
+    }
+    .nav-subtitle {
+      font-size: 11px; color: var(--text-muted); letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .btn-back {
+      padding: 7px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .btn-back:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ===== Main Layout ===== */
+    .main-container {
+      display: flex;
+      gap: 20px;
+      padding: 20px 28px;
+      max-width: 1500px;
+      margin: 0 auto;
+      height: calc(100vh - 56px);
+    }
+
+    /* ===== Panels ===== */
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .panel-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+    .panel-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* ===== Left Panel (Input) ===== */
+    .left-panel {
+      width: 320px;
+      flex-shrink: 0;
+    }
+    .textarea-wrap {
+      position: relative;
+    }
+    .char-count {
+      text-align: right;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .char-count.warn { color: var(--amber); }
+    .char-count.over { color: var(--red); }
+    textarea {
+      width: 100%;
+      height: 200px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 14px;
+      font-family: inherit;
+      line-height: 1.7;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      background: var(--bg);
+    }
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+    }
+    textarea::placeholder { color: var(--text-muted); }
+
+    .btn-launch {
+      width: 100%;
+      padding: 14px;
+      margin-top: 14px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 2px;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .btn-launch:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(37,99,235,0.3);
+    }
+    .btn-launch:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .btn-launch .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .tips-box {
+      margin-top: 16px;
+      padding: 14px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #92400e;
+      line-height: 1.7;
+    }
+    .tips-box strong { display: block; margin-bottom: 4px; }
+
+    /* ===== Middle Panel (Comment Feed) ===== */
+    .middle-panel {
+      flex: 1;
+      min-width: 0;
+    }
+    .comment-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .comment-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      animation: slideIn 0.4s ease-out;
+      transition: box-shadow 0.3s;
+    }
+    .comment-card:hover { box-shadow: var(--shadow-lg); }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .comment-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .comment-avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: white; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .avatar-black { background: linear-gradient(135deg, #dc2626, #ef4444); }
+    .avatar-neutral { background: linear-gradient(135deg, #64748b, #94a3b8); }
+    .avatar-fan { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+    .avatar-expert { background: linear-gradient(135deg, #2563eb, #06b6d4); }
+    .comment-role {
+      font-weight: 600; font-size: 13px;
+    }
+    .comment-role.black { color: #dc2626; }
+    .comment-role.neutral { color: #64748b; }
+    .comment-role.fan { color: #d97706; }
+    .comment-role.expert { color: #0891b2; }
+    .comment-role-tag {
+      font-size: 10px; padding: 2px 7px; border-radius: 10px;
+      font-weight: 500;
+    }
+    .tag-black { background: #fef2f2; color: #dc2626; }
+    .tag-neutral { background: #f1f5f9; color: #64748b; }
+    .tag-fan { background: #fffbeb; color: #d97706; }
+    .tag-expert { background: #ecfeff; color: #0891b2; }
+    .comment-text {
+      font-size: 14px; line-height: 1.75; color: var(--text);
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      gap: 12px;
+    }
+    .empty-icon { font-size: 52px; opacity: 0.6; }
+    .empty-text { font-size: 14px; }
+
+    /* ===== Right Panel (Analysis) ===== */
+    .right-panel {
+      width: 360px;
+      flex-shrink: 0;
+    }
+    .gauge-box {
+      width: 100%;
+      height: 260px;
+    }
+    .risk-badge {
+      text-align: center;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 1px;
+      display: inline-block;
+      width: 100%;
+    }
+    .risk-safe { background: #ecfdf5; color: #059669; }
+    .risk-low { background: #f0fdf4; color: #16a34a; }
+    .risk-medium { background: #fffbeb; color: #d97706; }
+    .risk-high { background: #fef2f2; color: #dc2626; }
+    .risk-critical { background: #fdf2f8; color: #be185d; }
+
+    .keyword-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .keyword-tag {
+      padding: 6px 14px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 20px;
+      font-size: 13px;
+      color: #dc2626;
+      font-weight: 600;
+      animation: popIn 0.3s ease-out;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .advice-box {
+      margin-top: 10px;
+      padding: 14px;
+      background: var(--primary-light);
+      border-radius: 8px;
+      border-left: 3px solid var(--primary);
+      font-size: 13px;
+      line-height: 1.7;
+      color: #1e40af;
+    }
+
+    .verdict-box {
+      margin-top: 10px;
+      padding: 12px;
+      background: #f8fafc;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    /* ===== Loading overlay ===== */
+    .loading-overlay {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 40px;
+    }
+    .radar-spinner {
+      width: 60px; height: 60px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-right-color: var(--purple);
+      border-radius: 50%;
+      animation: spin 1.2s linear infinite;
+    }
+    .loading-text {
+      font-size: 14px; color: var(--text-dim); letter-spacing: 1px;
+    }
+    .loading-dots::after {
+      content: '';
+      animation: dots 1.5s steps(3, end) infinite;
+    }
+    @keyframes dots {
+      0% { content: ''; } 33% { content: '.'; } 66% { content: '..'; } 100% { content: '...'; }
+    }
+
+    @media (max-width: 1100px) {
+      .main-container { flex-direction: column; height: auto; }
+      .left-panel, .right-panel { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <div class="nav-left">
+      <div class="nav-icon">&#9763;</div>
+      <div>
+        <div class="nav-title">舆情模拟攻防实验室</div>
+        <div class="nav-subtitle">Public Opinion Red-Blue Lab</div>
+      </div>
+    </div>
+    <button class="btn-back" onclick="window.location.href='portal.html'">&#8592; 返回控制台</button>
+  </div>
+
+  <!-- Main -->
+  <div class="main-container">
+    <!-- Left: Input -->
+    <div class="panel left-panel">
+      <div class="panel-header">
+        <span class="panel-dot" style="background: var(--primary)"></span>
+        测试文本输入
+      </div>
+      <div class="panel-body">
+        <div class="textarea-wrap">
+          <div class="char-count" :class="{ warn: charCount > 200, over: charCount > 280 }">
+            {{ charCount }} / 280
+          </div>
+          <textarea
+            v-model="inputText"
+            placeholder="输入你想要测试的微博文本...&#10;&#10;例如：这次的产品升级是我们团队努力了整整一年的成果，绝对物超所值！那些说不好的人，根本不懂行。"
+            maxlength="280"
+            :disabled="loading"
+          ></textarea>
+        </div>
+        <button class="btn-launch" @click="startStressTest" :disabled="loading || !inputText.trim()">
+          <span v-if="loading" class="spinner"></span>
+          <span>{{ loading ? 'AI 专家组正在介入...' : '⚡ 启动压力测试' }}</span>
+        </button>
+        <div class="tips-box">
+          <strong>💡 使用提示</strong>
+          输入一段模拟的微博文案，系统将派出一支由 <b>激进黑粉、理智路人、忠实粉丝、公关专家</b> 组成的 AI 专家组，对该文本进行多角度舆论压力测试，并给出综合风险评级。
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle: Comment Feed -->
+    <div class="panel middle-panel">
+      <div class="panel-header">
+        <span class="panel-dot" :style="{ background: loading ? 'var(--amber)' : 'var(--green)' }"></span>
+        模拟评论流
+        <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">
+          {{ comments.length > 0 ? comments.length + ' 条评论' : '等待测试...' }}
+        </span>
+      </div>
+      <div class="panel-body">
+        <!-- Loading -->
+        <div v-if="loading" class="loading-overlay">
+          <div class="radar-spinner"></div>
+          <div class="loading-text">AI 专家组正在介入<span class="loading-dots"></span></div>
+          <div style="font-size:12px;color:var(--text-muted);">同时分析文本的多个攻击面</div>
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="comments.length === 0" class="empty-state">
+          <div class="empty-icon">🔬</div>
+          <div class="empty-text">输入文本并点击「启动压力测试」</div>
+          <div style="font-size:12px;color:var(--text-muted);">AI 专家组将在此展示实时评论</div>
+        </div>
+
+        <!-- Comments -->
+        <div v-else class="comment-list">
+          <div
+            v-for="(c, idx) in comments"
+            :key="idx"
+            class="comment-card"
+            :style="{ animationDelay: (idx * 0.3) + 's' }"
+          >
+            <div class="comment-header">
+              <div :class="['comment-avatar', avatarClass(c.role)]">
+                {{ avatarEmoji(c.role) }}
+              </div>
+              <div>
+                <span :class="['comment-role', roleColorClass(c.role)]">{{ c.role }}</span>
+                <span :class="['comment-role-tag', roleTagClass(c.role)]" style="margin-left:6px;">{{ c.label }}</span>
+              </div>
+            </div>
+            <div class="comment-text">{{ c.content }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Analysis -->
+    <div class="panel right-panel">
+      <div class="panel-header">
+        <span class="panel-dot" style="background: var(--purple)"></span>
+        风险评估报告
+      </div>
+      <div class="panel-body">
+        <!-- Gauge -->
+        <div class="gauge-box" id="chart-risk-gauge"></div>
+
+        <!-- Risk Level -->
+        <div style="margin-top:8px;" v-if="riskLevel">
+          <span :class="['risk-badge', riskBadgeClass]">{{ riskLevel }}</span>
+        </div>
+
+        <!-- Keywords -->
+        <div v-if="keywords.length > 0" style="margin-top:16px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🎯 高风险关键词</div>
+          <div class="keyword-list">
+            <span v-for="(kw, i) in keywords" :key="i" class="keyword-tag"
+              :style="{ animationDelay: (i * 0.15) + 's' }">
+              {{ kw }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Expert Advice -->
+        <div v-if="expertAdvice" style="margin-top:16px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛡 公关专家建议</div>
+          <div class="advice-box">{{ expertAdvice }}</div>
+        </div>
+
+        <!-- Verdict -->
+        <div v-if="verdict" class="verdict-box">
+          <strong>综合研判：</strong>{{ verdict }}
+        </div>
+
+        <!-- Cost time -->
+        <div v-if="costTime > 0" style="text-align:center;margin-top:12px;font-size:11px;color:var(--text-muted);">
+          耗时 {{ (costTime / 1000).toFixed(1) }}s · Powered by SiliconFlow
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/theme.js"></script>
+<script>
+  const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue;
+
+  createApp({
+    setup() {
+      const inputText = ref('');
+      const loading = ref(false);
+      const comments = ref([]);
+      const riskScore = ref(0);
+      const riskLevel = ref('');
+      const keywords = ref([]);
+      const expertAdvice = ref('');
+      const verdict = ref('');
+      const costTime = ref(0);
+
+      let chartGauge = null;
+
+      const charCount = computed(() => inputText.value.length);
+
+      const roleConfig = {
+        '激进黑粉': { label: '攻击者', emoji: '💀', avatar: 'avatar-black', color: 'black', tag: 'tag-black' },
+        '理智路人': { label: '路人', emoji: '👤', avatar: 'avatar-neutral', color: 'neutral', tag: 'tag-neutral' },
+        '忠实粉丝': { label: '粉丝', emoji: '⭐', avatar: 'avatar-fan', color: 'fan', tag: 'tag-fan' },
+        '公关专家': { label: '专家', emoji: '🎯', avatar: 'avatar-expert', color: 'expert', tag: 'tag-expert' },
+      };
+
+      const avatarClass = (role) => (roleConfig[role] || roleConfig['理智路人']).avatar;
+      const roleColorClass = (role) => (roleConfig[role] || roleConfig['理智路人']).color;
+      const roleTagClass = (role) => (roleConfig[role] || roleConfig['理智路人']).tag;
+      const avatarEmoji = (role) => (roleConfig[role] || roleConfig['理智路人']).emoji;
+
+      const riskBadgeClass = computed(() => {
+        const s = riskScore.value;
+        if (s < 20) return 'risk-safe';
+        if (s < 40) return 'risk-low';
+        if (s < 60) return 'risk-medium';
+        if (s < 80) return 'risk-high';
+        return 'risk-critical';
+      });
+
+      // Init Gauge
+      const initGauge = () => {
+        const dom = document.getElementById('chart-risk-gauge');
+        if (!dom) return;
+        chartGauge = echarts.init(dom);
+        chartGauge.setOption({
+          series: [{
+            type: 'gauge',
+            startAngle: 210, endAngle: -30,
+            center: ['50%', '55%'], radius: '90%',
+            min: 0, max: 100,
+            splitNumber: 10,
+            axisLine: {
+              show: true,
+              lineStyle: {
+                width: 20,
+                color: [
+                  [0.2, '#059669'], [0.4, '#16a34a'], [0.6, '#d97706'],
+                  [0.8, '#dc2626'], [1, '#be185d']
+                ]
+              }
+            },
+            pointer: {
+              length: '65%', width: 6,
+              itemStyle: { color: '#1e293b' }
+            },
+            axisTick: { distance: -20, length: 8, lineStyle: { width: 1, color: '#cbd5e1' } },
+            splitLine: { distance: -24, length: 16, lineStyle: { width: 2, color: '#cbd5e1' } },
+            axisLabel: { distance: 28, color: '#64748b', fontSize: 11, fontFamily: 'inherit' },
+            anchor: { show: true, size: 16, itemStyle: { borderColor: '#1e293b', borderWidth: 3 } },
+            title: { offsetCenter: [0, '78%'], color: '#64748b', fontSize: 13 },
+            detail: {
+              valueAnimation: true,
+              fontSize: 32,
+              fontWeight: 700,
+              offsetCenter: [0, '55%'],
+              formatter: '{value}',
+              color: '#1e293b'
+            },
+            data: [{ value: 0, name: '舆情风险指数' }]
+          }]
+        });
+        // Register for theme switching
+        CPMSTheme.registerChart(chartGauge, function(tokens) {
+          var isLight = CPMSTheme.current() === 'light';
+          return {
+            backgroundColor: 'transparent',
+            series: [{
+              axisLabel: { color: tokens.chartText },
+              axisTick: { lineStyle: { color: tokens.chartAxis } },
+              splitLine: { lineStyle: { color: tokens.chartSplit } },
+              title: { color: tokens.chartText },
+              detail: { color: isLight ? '#1e293b' : '#e2e8f0' },
+              pointer: { itemStyle: { color: isLight ? '#1e293b' : '#cbd5e1' } },
+              anchor: { itemStyle: { borderColor: isLight ? '#1e293b' : '#cbd5e1' } }
+            }]
+          };
+        });
+      };
+
+      const updateGauge = (score) => {
+        if (!chartGauge) return;
+        chartGauge.setOption({ series: [{ data: [{ value: score, name: '舆情风险指数' }] }] });
+      };
+
+      // Start stress test
+      const startStressTest = async () => {
+        if (!inputText.value.trim() || loading.value) return;
+
+        loading.value = true;
+        comments.value = [];
+        riskScore.value = 0;
+        riskLevel.value = '';
+        keywords.value = [];
+        expertAdvice.value = '';
+        verdict.value = '';
+        costTime.value = 0;
+        updateGauge(0);
+
+        try {
+          const res = await fetch('/api/simulation/stress-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: inputText.value.trim() })
+          });
+          const data = await res.json();
+
+          if (data.error) {
+            alert(data.error);
+            loading.value = false;
+            return;
+          }
+
+          costTime.value = data.costTime || 0;
+
+          // Stagger comment display
+          const commentEntries = Object.entries(data.comments || {});
+          const roleOrder = ['激进黑粉', '理智路人', '忠实粉丝', '公关专家'];
+
+          // Sort by role order
+          commentEntries.sort((a, b) => roleOrder.indexOf(a[0]) - roleOrder.indexOf(b[0]));
+
+          for (let i = 0; i < commentEntries.length; i++) {
+            const [role, content] = commentEntries[i];
+            const config = roleConfig[role] || roleConfig['理智路人'];
+            comments.value.push({
+              role,
+              content,
+              label: config.label
+            });
+            await new Promise(r => setTimeout(r, 600));
+          }
+
+          // Animate gauge
+          const targetScore = data.riskScore || 50;
+          const startScore = 0;
+          const duration = 1000;
+          const steps = 30;
+          const increment = targetScore / steps;
+          for (let i = 0; i <= steps; i++) {
+            updateGauge(Math.round(i * increment));
+            await new Promise(r => setTimeout(r, duration / steps));
+          }
+          riskScore.value = targetScore;
+
+          // Show analysis results
+          riskLevel.value = data.riskLevel || '中等风险';
+          keywords.value = data.keywords || [];
+          expertAdvice.value = data.expertAdvice || '';
+          verdict.value = data.verdict || '';
+
+        } catch (e) {
+          console.error('Stress test error:', e);
+          alert('压力测试请求失败，请稍后重试。');
+        } finally {
+          loading.value = false;
+        }
+      };
+
+      onMounted(() => {
+        nextTick(() => initGauge());
+        window.addEventListener('resize', () => chartGauge?.resize());
+        window.addEventListener('theme-changed', function(e) {
+          // Theme tokens like --amber, --red, --primary now come from theme.css
+        });
+      });
+
+      return {
+        inputText, loading, comments, riskScore, riskLevel, keywords,
+        expertAdvice, verdict, costTime, charCount,
+        avatarClass, roleColorClass, roleTagClass, avatarEmoji,
+        riskBadgeClass, startStressTest
+      };
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>
