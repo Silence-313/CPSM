@@ -57,6 +57,7 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
         List<JsonNode> allComments = new ArrayList<>();
         int page = 1;
         int maxPages = 50;
+        int perPage = 20; // 微博 Ajax API 实际每页上限为20条（count参数无法突破此限制）
 
         String weiboTitle = fetchWeiboTitle(mid);
 
@@ -71,7 +72,7 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
                 if (useSpider == null) {
                     System.out.println("[评论分析] 尝试官方API获取评论 page=" + page + " mid=" + mid);
                     try {
-                        JsonNode root = weiboOpenApiService.getComments(mid, 200, page);
+                        JsonNode root = weiboOpenApiService.getComments(mid, perPage, page);
                         if (root != null) {
                             comments = root.path("comments");
                             if (comments.isArray() && comments.size() > 0) {
@@ -95,7 +96,7 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
                 if (Boolean.FALSE.equals(useSpider) && comments == null) {
                     System.out.println("[评论分析] 官方API获取评论 page=" + page + " mid=" + mid);
                     try {
-                        JsonNode root = weiboOpenApiService.getComments(mid, 200, page);
+                        JsonNode root = weiboOpenApiService.getComments(mid, perPage, page);
                         if (root != null) {
                             comments = root.path("comments");
                         }
@@ -113,7 +114,7 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
                 // --- 爬虫模式 ---
                 if (Boolean.TRUE.equals(useSpider) && comments == null) {
                     System.out.println("[评论分析] 爬虫获取评论 page=" + page + " mid=" + mid);
-                    JsonNode spiderResult = callContentSpider("comments", mid, page, 200);
+                    JsonNode spiderResult = callContentSpider("comments", mid, page, perPage);
                     if (spiderResult == null) {
                         System.err.println("[评论分析] 爬虫返回null，停止抓取");
                         break;
@@ -139,9 +140,6 @@ public class CommentAnalysisServiceImpl implements CommentAnalysisService {
                 }
 
                 updateProgress(mid, Math.min(95, page * 2));
-
-                // 本页不满200条说明已是最后一页
-                if (comments.size() < 200) break;
 
                 page++;
                 Thread.sleep(Boolean.TRUE.equals(useSpider) ? 1500 : 1000);

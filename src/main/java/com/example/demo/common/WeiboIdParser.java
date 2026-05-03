@@ -32,6 +32,9 @@ public class WeiboIdParser {
         // 3. 如果输入本身就是 9-16 位的纯数字
         if (input.matches("^\\d{9,16}$")) return input;
 
+        // 4. 纯字母数字短 MID（如 QCVaxBM5m）— 透传给微博 API 解析
+        if (input.matches("^[A-Za-z0-9]{4,16}$")) return input;
+
         return null;
     }
 

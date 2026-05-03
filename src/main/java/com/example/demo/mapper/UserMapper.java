@@ -21,4 +21,13 @@ public interface UserMapper {
     // 更新密码
     @Update("UPDATE sys_user SET password=#{pwd} WHERE id=#{id}")
     void updatePassword(@Param("id") Long id, @Param("pwd") String pwd);
+
+    @Update("UPDATE sys_user SET username=#{username} WHERE id=#{id}")
+    int updateUsername(@Param("id") Long id, @Param("username") String username);
+
+    @Update("UPDATE sys_user SET avatar=#{avatar} WHERE id=#{id}")
+    int updateAvatar(@Param("id") Long id, @Param("avatar") String avatar);
+
+    @Select("SELECT * FROM sys_user WHERE id=#{id}")
+    User selectById(@Param("id") Long id);
 }

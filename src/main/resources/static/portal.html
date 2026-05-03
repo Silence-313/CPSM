@@ -6,6 +6,7 @@
   <title>功能控制台 - 微博数据系统</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
+  <link rel="stylesheet" href="css/theme.css">
   <link rel="stylesheet" href="css/portal.css">
 </head>
 <body>
@@ -14,6 +15,34 @@
   <div class="welcome-section">
     <h1>您好，{{ username }}</h1>
     <p>请选择您要使用的功能模块</p>
+  </div>
+
+  <!-- 系统健康态势感知入口 -->
+  <div class="dashboard-preview" @click="goTo('dashboard.html')">
+    <div class="dp-header">
+      <span class="dp-icon">&#9889;</span>
+      <span class="dp-title">系统健康态势感知大屏</span>
+      <span class="dp-badge">LIVE</span>
+    </div>
+    <div class="dp-metrics">
+      <div class="dp-metric">
+        <span class="dp-metric-value" :style="{ color: dpData.cpuLoad > 80 ? '#ef4444' : '#10b981' }">{{ dpData.cpuLoad }}%</span>
+        <span class="dp-metric-label">CPU</span>
+      </div>
+      <div class="dp-metric">
+        <span class="dp-metric-value">{{ dpData.memoryUsage }}%</span>
+        <span class="dp-metric-label">内存</span>
+      </div>
+      <div class="dp-metric">
+        <span class="dp-metric-value">{{ dpData.qps }}</span>
+        <span class="dp-metric-label">QPS</span>
+      </div>
+      <div class="dp-metric">
+        <span class="dp-metric-value" :style="{ color: dpData.neo4jOk ? '#10b981' : '#ef4444' }">{{ dpData.neo4jOk ? 'ON' : 'OFF' }}</span>
+        <span class="dp-metric-label">Neo4j</span>
+      </div>
+    </div>
+    <div class="dp-arrow">&#8594; 查看完整大屏</div>
   </div>
 
   <div class="menu-grid">
@@ -42,16 +71,23 @@
       <p>抓取转发链，AI定位引爆点</p>
     </div>
 
-    <div class="menu-card" style="opacity: 0.6; cursor: not-allowed;">
+    <div class="menu-card" @click="goTo('lab.html')">
+      <span class="icon">🔬</span>
+      <h3>舆情攻防实验室</h3>
+      <p>多智能体模拟 · 压力测试 · 风险评级</p>
+    </div>
+
+    <div class="menu-card" @click="goTo('profile.html')">
       <span class="icon">⚙️</span>
       <h3>个人中心</h3>
-      <p>修改资料与安全设置</p>
+      <p>指挥控制台 · 资料设置 · 系统动态</p>
     </div>
   </div>
 
   <button class="logout-btn" @click="logout">退出登录</button>
 </div>
 
+<script src="js/theme.js"></script>
 <script src="js/portal.js"></script>
 </body>
 </html>

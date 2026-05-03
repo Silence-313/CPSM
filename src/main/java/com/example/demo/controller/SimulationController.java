@@ -4,6 +4,7 @@ import com.example.demo.entity.SimResult;
 import com.example.demo.entity.SimSession;
 import com.example.demo.service.OpenAICompatibleService;
 import com.example.demo.service.SimulationService;
+import com.example.demo.service.StressTestService;
 import com.example.demo.service.OpenAICompatibleService.ModelResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +24,8 @@ import java.util.stream.Collectors;
 public class SimulationController {
 
     private final OpenAICompatibleService aiService;
-    private final SimulationService simulationService;   // 用于异步沙盘推演与数据库操作
+    private final SimulationService simulationService;
+    private final StressTestService stressTestService;   // 用于异步沙盘推演与数据库操作
 
     // ========== 1. 快速并发测试接口（不存库） ==========
     @PostMapping("/predict-all")
@@ -50,6 +52,17 @@ public class SimulationController {
                 doubaoFuture, hunyuanFuture, sparkFuture).join();
 
         return results;
+    }
+
+    // ========== 1.5. 舆情压力测试（多智能体攻防模拟） ==========
+    @PostMapping("/stress-test")
+    public ResponseEntity<Map<String, Object>> stressTest(@RequestBody Map<String, String> payload) {
+        String text = payload.get("text");
+        if (text == null || text.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "请输入测试文本"));
+        }
+        Map<String, Object> result = stressTestService.runStressTest(text.trim());
+        return ResponseEntity.ok(result);
     }
 
     // ========== 2. 启动沙盘模拟（异步，存库） ==========

@@ -106,4 +106,38 @@ public class OpenAICompatibleService {
                 siliconflowConfig.getBaseUrl(), siliconflowConfig.getApiKey(), siliconflowConfig.getModel());
     }
 
+    // 支持自定义 System Prompt 的调用（用于多智能体模拟）
+    public ModelResponse callWithSystemPrompt(String systemPrompt, String userMessage) {
+        long startTime = System.currentTimeMillis();
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + siliconflowConfig.getApiKey());
+
+            List<Map<String, String>> messages = List.of(
+                    Map.of("role", "system", "content", systemPrompt),
+                    Map.of("role", "user", "content", userMessage)
+            );
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", siliconflowConfig.getModel());
+            body.put("messages", messages);
+            body.put("temperature", 0.8);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            String url = siliconflowConfig.getBaseUrl() + "/chat/completions";
+            ResponseEntity<String> resp = restTemplate.postForEntity(url, entity, String.class);
+            JsonNode root = objectMapper.readTree(resp.getBody());
+            String content = root.path("choices").get(0).path("message").path("content").asText();
+
+            long costTime = System.currentTimeMillis() - startTime;
+            log.info("✅ [Agent] 调用成功，耗时 {}ms，返回字数 {}", costTime, content.length());
+            return new ModelResponse("Agent", content, true, null, costTime);
+        } catch (Exception e) {
+            long costTime = System.currentTimeMillis() - startTime;
+            log.error("❌ [Agent] 调用失败，耗时 {}ms，错误: {}", costTime, e.getMessage());
+            return new ModelResponse("Agent", null, false, e.getMessage(), costTime);
+        }
+    }
+
 }

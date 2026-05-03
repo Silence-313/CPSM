@@ -1,18 +1,20 @@
 /* static/css/simulation.css */
 .input-area {
-    background: white;
+    background: var(--bg-card-solid);
     padding: 30px;
     border-radius: 16px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    box-shadow: var(--shadow-md);
     margin-bottom: 20px;
 }
 
 textarea {
     width: 100%;
     padding: 15px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 16px;
+    background: var(--bg-input);
+    color: var(--text-primary);
 }
 
 .btn:disabled {
@@ -28,25 +30,26 @@ textarea {
 }
 
 .model-card {
-    background: white;
+    background: var(--bg-card-solid);
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    box-shadow: var(--shadow-sm);
 }
 
 .model-name {
     font-weight: bold;
     margin-bottom: 10px;
-    color: #1e293b;
+    color: var(--text-primary);
 }
 
 .model-output {
-    background: #f8fafc;
+    background: var(--bg-hover);
     padding: 15px;
     border-radius: 8px;
     min-height: 150px;
     white-space: pre-wrap;
     word-break: break-word;
+    color: var(--text-primary);
 }
 
 .verdict-card {
@@ -70,10 +73,10 @@ textarea {
     right: 20px;
     top: 100px;
     width: 280px;
-    background: white;
+    background: var(--bg-card-solid);
     border-radius: 16px;
     padding: 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-lg);
     max-height: 70vh;
     overflow-y: auto;
     z-index: 100;
@@ -121,7 +124,7 @@ html { scroll-behavior: smooth; }
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* 裁决卡片的“深度思考”呼吸光效 */
+/* 裁决卡片的"深度思考"呼吸光效 */
 .verdict-card.is-thinking {
     position: relative;
     overflow: hidden;
@@ -158,37 +161,3 @@ html { scroll-behavior: smooth; }
     transition: transform 0.3s ease;
 }
 .risk-tag:hover { transform: scale(1.1); }
-
-/* 导航样式（与 index 一致，默认左对齐） */
-.nav-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.nav-btn {
-    padding: 8px 18px;
-    font-size: 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.3s;
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    text-decoration: none;
-    border: none;
-    background: transparent;
-}
-.btn-back {
-    background-color: #f0f2f5;
-    color: #666;
-    border: 1px solid #d9d9d9;
-}
-.btn-logout {
-    background-color: #fff;
-    color: #ff4d4f;
-    border: 1px solid #ff4d4f;
-}
-.btn-logout:hover {
-    background-color: #ff4d4f10;
-}

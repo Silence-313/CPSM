@@ -11,4 +11,7 @@ public interface WeiboRepostTreeMapper {
             "VALUES (#{mid}, #{parentMid}, #{rootMid}, #{uid}, #{screenName}, #{content}, #{repostNum}, #{attitude}, #{postTime}) " +
             "ON DUPLICATE KEY UPDATE repost_num = VALUES(repost_num), attitude = VALUES(attitude)")
     int insert(WeiboRepostTree node);
+
+    @org.apache.ibatis.annotations.Select("SELECT mid, parent_mid FROM weibo_repost_tree WHERE root_mid = #{rootMid}")
+    java.util.List<java.util.Map<String, String>> getParentMappings(String rootMid);
 }

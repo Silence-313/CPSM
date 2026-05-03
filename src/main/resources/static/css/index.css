@@ -1,14 +1,10 @@
-:root {
-    --primary-color: #ff8200;
-}
-
 * {
     box-sizing: border-box;
 }
 
 body {
     font-family: "Microsoft YaHei", sans-serif;
-    background-color: #f0f2f5;
+    background: var(--bg-primary);
     margin: 0;
     padding: 20px;
 }
@@ -16,9 +12,9 @@ body {
 .container {
     max-width: 1000px;
     margin: 0 auto;
-    background: #fff;
+    background: var(--bg-card-solid);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow-md);
     padding: 20px;
 }
 
@@ -45,33 +41,34 @@ body {
 }
 
 .btn-back {
-    background-color: #f0f2f5;
-    color: #666;
-    border: 1px solid #d9d9d9;
+    background: var(--bg-card);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
 }
 
 .btn-logout {
-    background-color: #fff;
-    color: #ff4d4f;
-    border: 1px solid #ff4d4f;
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
 }
 
 .btn-logout:hover {
-    background-color: #ff4d4f10;
+    background: var(--danger);
+    color: white;
 }
 
 h1 {
     text-align: center;
-    color: #333;
+    color: var(--text-primary);
     margin-top: 0;
 }
 
 .monitor-manager {
     margin-bottom: 30px;
-    background: #f9f9f9;
+    background: var(--bg-hover);
     padding: 20px;
     border-radius: 12px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border);
 }
 
 .manager-header {
@@ -85,8 +82,8 @@ h1 {
 
 .manager-title {
     margin: 0;
-    color: #444;
-    border-left: 4px solid var(--primary-color);
+    color: var(--text-primary);
+    border-left: 4px solid var(--accent);
     padding-left: 10px;
 }
 
@@ -99,14 +96,16 @@ h1 {
 .star-input {
     padding: 6px 12px;
     border-radius: 6px;
-    border: 1px solid #d9d9d9;
+    border: 1px solid var(--border);
     outline: none;
     font-size: 14px;
+    background: var(--bg-input);
+    color: var(--text-primary);
 }
 
 .star-input:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(255,130,0,0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .add-star-btn {
@@ -127,23 +126,24 @@ h1 {
 .monitor-table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: var(--bg-card-solid);
     border-radius: 8px;
     overflow: hidden;
 }
 
 .monitor-table th {
-    background: #fafafa;
+    background: var(--bg-hover);
     padding: 12px;
     text-align: left;
-    border-bottom: 1px solid #eee;
-    color: #666;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
     font-size: 14px;
 }
 
 .monitor-table td {
     padding: 12px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
     vertical-align: middle;
 }
 
@@ -188,7 +188,7 @@ h1 {
 }
 
 .kw-quick-input:focus {
-    border-color: var(--primary-color);
+    border-color: var(--accent);
     width: 110px;
 }
 
@@ -257,7 +257,7 @@ h1 {
 
 .refresh-btn {
     padding: 10px 25px;
-    background: var(--primary-color);
+    background: var(--accent);
     color: white;
     border: none;
     border-radius: 20px;
@@ -281,7 +281,7 @@ h1 {
     gap: 6px;
     cursor: pointer;
     font-size: 14px;
-    color: #666;
+    color: var(--text-dim);
 }
 
 .hot-list {
@@ -300,13 +300,13 @@ h1 {
 }
 
 .hot-item:hover {
-    background-color: #fafafa;
+    background-color: var(--bg-hover);
 }
 
 .rank {
     width: 40px;
     font-weight: bold;
-    color: #999;
+    color: var(--text-dim);
     font-style: italic;
     font-size: 1.2em;
 }
@@ -314,7 +314,7 @@ h1 {
 .content {
     flex-grow: 1;
     margin: 0 15px;
-    color: #333;
+    color: var(--text-primary);
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -322,7 +322,7 @@ h1 {
 }
 
 .num {
-    color: #666;
+    color: var(--text-dim);
     font-size: 0.9em;
     width: 150px;
     text-align: right;
@@ -334,39 +334,4 @@ h1 {
     font-size: 11px;
     color: #fff;
     display: inline-block;
-}
-
-
-/* 导航样式（与 index 一致，默认左对齐） */
-.nav-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.nav-btn {
-    padding: 8px 18px;
-    font-size: 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.3s;
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    text-decoration: none;
-    border: none;
-    background: transparent;
-}
-.btn-back {
-    background-color: #f0f2f5;
-    color: #666;
-    border: 1px solid #d9d9d9;
-}
-.btn-logout {
-    background-color: #fff;
-    color: #ff4d4f;
-    border: 1px solid #ff4d4f;
-}
-.btn-logout:hover {
-    background-color: #ff4d4f10;
 }

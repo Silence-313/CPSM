@@ -14,16 +14,20 @@ import pymysql
 from py2neo import Graph, Node, Relationship
 
 # ========== 配置区 ==========
+# 请通过环境变量设置真实密码，或直接修改下方占位符
 MYSQL_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'naonao050301',
-    'database': 'cpms',
+    'host': os.environ.get('MYSQL_HOST', 'localhost'),
+    'user': os.environ.get('MYSQL_USER', 'root'),
+    'password': os.environ.get('MYSQL_PASSWORD', 'your-mysql-password'),
+    'database': os.environ.get('MYSQL_DATABASE', 'cpms'),
     'charset': 'utf8mb4'
 }
 
-NEO4J_URI = "bolt://localhost:7687"
-NEO4J_AUTH = ("neo4j", "naonao050301")
+NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://localhost:7687')
+NEO4J_AUTH = (
+    os.environ.get('NEO4J_USER', 'neo4j'),
+    os.environ.get('NEO4J_PASSWORD', 'your-neo4j-password')
+)
 
 COOKIE_FILE = "spider/weibo_config.json"
 MAX_DEPTH = 5
@@ -215,16 +219,21 @@ def save_to_neo4j(graph, data):
                 content=data['content'][:200],
                 repostCount=data['repost_num'],
                 sentiment=data['attitude'],
-                postTime=data['post_time'].isoformat())
+                postTime=data['post_time'])
     graph.merge(node, "Post", "mid")
     print(f"  🗂️  Neo4j 节点已合并: {data['mid']}")
 
     if data['parent_mid']:
         parent_node = graph.nodes.match("Post", mid=data['parent_mid']).first()
         if parent_node:
-            rel = Relationship(node, "REPOSTED_FROM", parent_node)
-            graph.merge(rel)
-            print(f"  🔗 关系已建立: {data['mid']} -[:REPOSTED_FROM]-> {data['parent_mid']}")
+            # 检查是否已存在关系，避免创建重复的 REPOSTED_FROM
+            existing_rel = graph.match_one([node], "REPOSTED_FROM", [parent_node])
+            if existing_rel is None:
+                rel = Relationship(node, "REPOSTED_FROM", parent_node)
+                graph.create(rel)
+                print(f"  🔗 关系已建立: {data['mid']} -[:REPOSTED_FROM]-> {data['parent_mid']}")
+            else:
+                print(f"  ⏭️  关系已存在，跳过: {data['mid']} -[:REPOSTED_FROM]-> {data['parent_mid']}")
 
 # ========== 递归抓取 ==========
 
@@ -320,7 +329,7 @@ def main():
         save_to_mysql(mysql_conn, root_data)
         save_to_neo4j(graph, root_data)
 
-        crawl_repost_tree(graph, mysql_conn, target_mid, target_mid, parent_mid=None, depth=1)
+        crawl_repost_tree(graph, mysql_conn, target_mid, target_mid, parent_mid=target_mid, depth=1)
 
         print("\n" + "=" * 50)
         print(f"✅ 溯源树构建完成！总节点数: {len(visited_mids)}")

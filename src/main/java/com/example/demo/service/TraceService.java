@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.common.WeiboIdParser;
 import com.example.demo.entity.PostNode;
 import com.example.demo.entity.WeiboRepostTree;
 import com.example.demo.mapper.WeiboRepostTreeMapper;
@@ -17,10 +18,7 @@ import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,7 +42,11 @@ public class TraceService {
 
     @Async
     public void asyncBuildTraceTree(String mid) {
-        mid = extractMid(mid);
+        mid = WeiboIdParser.parseMid(mid);
+        if (mid == null) {
+            log.error("❌ 无法识别的微博链接或ID");
+            return;
+        }
         log.info("🦋 启动溯源抓取，MID = {}", mid);
         taskStatusMap.put(mid, TaskStatus.RUNNING);
         try {
@@ -57,33 +59,9 @@ public class TraceService {
         }
     }
 
-    /**
-     * 从 URL 或纯文本中提取微博 MID
-     * 支持格式：纯数字MID、字母数字MID、https://weibo.com/{uid}/{mid}?...
-     */
-    private String extractMid(String input) {
-        if (input == null || input.isEmpty()) return input;
-        // 尝试匹配 weibo.com/{uid}/{mid} 格式
-        Pattern urlPattern = Pattern.compile("weibo\\.com/\\d+/([a-zA-Z0-9]+)");
-        Matcher m = urlPattern.matcher(input);
-        if (m.find()) {
-            return m.group(1);
-        }
-        // 尝试匹配纯数字 MID（16位左右）
-        Pattern numericPattern = Pattern.compile("(\\d{9,16})");
-        m = numericPattern.matcher(input.replaceAll("\\s+", ""));
-        if (m.find()) {
-            return m.group(1);
-        }
-        // 返回原始输入（可能已经是纯 MID）
-        return input.trim();
-    }
-
     // 2. 核心递归抓取逻辑（官方API优先，爬虫降级）
     private void crawlAndBuildTree(String rootMid) {
-        // 从 URL 中提取纯 MID（兼容用户粘贴完整链接）
-        rootMid = extractMid(rootMid);
-        log.info("🔍 提取后的 MID = {}", rootMid);
+        log.info("🔍 开始溯源抓取，MID = {}", rootMid);
 
         // 抓取根节点：优先官方API
         JsonNode status = weiboApiService.getStatusById(rootMid);
@@ -95,27 +73,33 @@ public class TraceService {
             throw new RuntimeException("无法获取微博详情，官方API和爬虫均失败。mid=" + rootMid);
         }
 
-        // 使用爬虫/API 返回的真实数字 MID（短 MID 可能无法用于转发列表接口）
+        // 使用爬虫/API 返回的真实数字 MID 用于后续 API 调用（短 MID 无法用于转发列表接口）
+        // controllerMid 保持前端传入的 MID，用于 Neo4j/MySQL 存储时的 root_mid 字段，确保前后端查询一致
+        String controllerMid = rootMid;
         String resolvedMid = status.path("mid").asText();
-        if (resolvedMid != null && !resolvedMid.isEmpty()) {
-            rootMid = resolvedMid;
-            log.info("📌 使用解析后的数字 MID = {}", rootMid);
+        String apiMid = (resolvedMid != null && !resolvedMid.isEmpty()) ? resolvedMid : rootMid;
+        if (!apiMid.equals(rootMid)) {
+            log.info("📌 API 解析后的数字 MID = {}，controller MID = {}", apiMid, controllerMid);
         }
 
         String screenName = status.path("user").path("screen_name").asText();
         String uid = status.path("user").path("id").asText();
-        String content = status.path("text").asText();
+        // 兼容官方API(text)和爬虫(text_raw)两种字段名
+        String content = status.path("text_raw").asText();
+        if (content.isEmpty()) {
+            content = status.path("text").asText();
+        }
         int repostNum = status.path("reposts_count").asInt();
         LocalDateTime postTime = parseWeiboTime(status.path("created_at").asText());
 
-        // 保存根节点
-        savePostNode(rootMid, null, rootMid, uid, screenName, content, repostNum, postTime);
+        // 保存根节点：mid=apiMid（用于图谱节点匹配），rootMid=controllerMid（用于前端查询）
+        savePostNode(apiMid, null, controllerMid, uid, screenName, content, repostNum, postTime);
 
         // 递归抓取转发（useSpider[0] 作为是否降级到爬虫的标志位，默认为 false）
         Set<String> visited = new HashSet<>();
-        visited.add(rootMid);
+        visited.add(apiMid);
         boolean[] useSpider = new boolean[]{false};
-        crawlRepostRecursive(rootMid, rootMid, 1, visited, useSpider);
+        crawlRepostRecursive(controllerMid, apiMid, 1, visited, useSpider);
     }
 
     private LocalDateTime parseWeiboTime(String timeStr) {
@@ -290,8 +274,35 @@ public class TraceService {
         List<Map<String, Object>> graphNodes = new ArrayList<>();
         List<Map<String, Object>> graphLinks = new ArrayList<>();
 
-        Map<String, PostNode> nodeMap = nodes.stream()
-                .collect(Collectors.toMap(PostNode::getMid, n -> n));
+        // 从 MySQL 获取父子关系映射
+        Map<String, String> parentMap = new HashMap<>();
+        try {
+            List<Map<String, String>> mappings = repostTreeMapper.getParentMappings(rootMid);
+            if (mappings != null) {
+                for (Map<String, String> m : mappings) {
+                    String mid = m.get("mid");
+                    String parentMid = m.get("parent_mid");
+                    if (mid != null && parentMid != null) {
+                        parentMap.put(mid, parentMid);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("从 MySQL 获取父子关系失败: {}", e.getMessage());
+        }
+
+        // 计算每个节点的深度（从根节点往上追溯）
+        Map<String, Integer> depthMap = new HashMap<>();
+        for (PostNode node : nodes) {
+            int depth = 0;
+            String current = node.getMid();
+            while (parentMap.containsKey(current)) {
+                depth++;
+                current = parentMap.get(current);
+                if (depth > 10) break; // 防止环形引用
+            }
+            depthMap.put(node.getMid(), depth);
+        }
 
         for (PostNode node : nodes) {
             Map<String, Object> n = new HashMap<>();
@@ -299,23 +310,16 @@ public class TraceService {
             n.put("name", node.getScreenName());
             n.put("value", node.getRepostCount());
             n.put("sentiment", node.getSentiment());
+            n.put("depth", depthMap.getOrDefault(node.getMid(), 0));
             n.put("postTime", node.getPostTime() != null ? node.getPostTime().toString() : "");
-
-            // 情感颜色
-            if (node.getSentiment() != null) {
-                if (node.getSentiment() == 1) n.put("itemStyle", Map.of("color", "#52c41a"));
-                else if (node.getSentiment() == -1) n.put("itemStyle", Map.of("color", "#f5222d"));
-                else n.put("itemStyle", Map.of("color", "#1890ff"));
-            } else {
-                n.put("itemStyle", Map.of("color", "#1890ff"));
-            }
+            // 前端根据 depth + sentiment 统一着色，不再后端预设 itemStyle
             graphNodes.add(n);
 
-            // 构建连线：当前节点 -> 父节点
-            PostNode parent = node.getParent();
-            if (parent != null) {
+            // 构建连线：从 parent（源）到当前节点（目标）
+            String parentMid = parentMap.get(node.getMid());
+            if (parentMid != null) {
                 Map<String, Object> link = new HashMap<>();
-                link.put("source", parent.getMid());
+                link.put("source", parentMid);
                 link.put("target", node.getMid());
                 graphLinks.add(link);
             }
@@ -371,8 +375,16 @@ public class TraceService {
         neoNode.setSentiment(0);
         neoNode.setPostTime(postTime);
 
-        // 设置父节点关系
-        if (parentMid != null) {
+        // 设置父节点关系（先检查是否已存在该节点，避免重复创建）
+        PostNode existing = neo4jRepository.findById(mid).orElse(null);
+        if (existing != null) {
+            // 节点已存在，仅更新属性
+            existing.setRepostCount(repostCount);
+            existing.setContent(content);
+            neoNode = existing;
+        }
+
+        if (parentMid != null && neoNode.getParent() == null) {
             PostNode parentNode = neo4jRepository.findById(parentMid).orElse(null);
             if (parentNode != null) {
                 neoNode.setParent(parentNode);

@@ -15,6 +15,8 @@ createApp({
         const progress = ref(0);
         const statusText = ref('准备启动爬虫引擎...');
         let sentimentChart = null;
+        let wordCloudChart = null;
+        let chartsRegistered = false;
 
         const goBack = () => window.location.href = 'portal.html';
         const openHelp = () => {
@@ -88,6 +90,12 @@ createApp({
                     data: data
                 }]
             });
+            if (!chartsRegistered) {
+                CPMSTheme.registerChart(sentimentChart, function(tokens) {
+                    return { backgroundColor: 'transparent' };
+                });
+                chartsRegistered = true;
+            }
         };
 
         const deleteHistoryItem = async (mid) => {
@@ -132,8 +140,12 @@ createApp({
         };
 
         const initWordCloud = (data) => {
-            const chart = echarts.init(document.getElementById('wordCloudChart'));
-            chart.setOption({
+            if (wordCloudChart) {
+                CPMSTheme.unregisterChart(wordCloudChart);
+                wordCloudChart.dispose();
+            }
+            wordCloudChart = echarts.init(document.getElementById('wordCloudChart'));
+            wordCloudChart.setOption({
                 series: [{
                     type: 'wordCloud',
                     shape: 'circle',
@@ -147,6 +159,9 @@ createApp({
                     },
                     data: data
                 }]
+            });
+            CPMSTheme.registerChart(wordCloudChart, function(tokens) {
+                return { backgroundColor: 'transparent' };
             });
         };
 
@@ -301,6 +316,9 @@ createApp({
 
         onMounted(() => {
             fetchHistory();
+            window.addEventListener('theme-changed', function(e) {
+                // Charts auto-updated by CPMSTheme registration
+            });
         });
 
 
